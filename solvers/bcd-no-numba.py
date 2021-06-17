@@ -6,7 +6,7 @@ from numpy.linalg import norm
 from numba import njit
 from benchopt import BaseSolver
 
-from .utils import get_alpha_max, get_lipschitz
+from ..utils import get_alpha_max, get_lipschitz
 
 
 class BCDNoNumba(BaseSolver):

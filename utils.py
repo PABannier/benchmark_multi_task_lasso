@@ -7,13 +7,22 @@ def groups_norm2(A, n_orient):
     return np.sum(np.power(A, 2, A).reshape(n_positions, -1), axis=1)
 
 
-def norm_l2inf(A, n_orient, copy=True):
+def norm_l2inf(A, n_orient=1, copy=True):
     """L2-inf norm."""
     if A.size == 0:
         return 0.0
     if copy:
         A = A.copy()
     return np.sqrt(np.max(groups_norm2(A, n_orient)))
+
+
+def norm_l21(A, n_orient=1, copy=True):
+    """L21 norm."""
+    if A.size == 0:
+        return 0.0
+    if copy:
+        A = A.copy()
+    return np.sum(np.sqrt(groups_norm2(A, n_orient)))
 
 
 def get_lipschitz(self, G):

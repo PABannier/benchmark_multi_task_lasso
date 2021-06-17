@@ -1,22 +1,21 @@
 from benchopt import BaseObjective
+from .utils import norm_l21
 
 
-class Objective(BaseObjective):
-    name = "Ordinary Least Squares"
+class MTLObjective(BaseObjective):
+    name = "Multi Task Lasso"
 
-    parameters = {
-        'fit_intercept': [False],
-    }
+    parameters = {"reg": [0.3, 0.5, 0.7]}
 
-    def __init__(self, fit_intercept=False):
-        self.fit_intercept = fit_intercept
+    def __init__(self, reg=0.1):
+        self.reg = reg
 
-    def set_data(self, X, y):
-        self.X, self.y = X, y
+    def set_data(self, G, M):
+        self.G, self.M = G, M
 
-    def compute(self, beta):
-        diff = self.y - self.X.dot(beta)
-        return .5 * diff.dot(diff)
+    def compute(self, X):
+        diff = self.M - self.G @ X
+        return 0.5 * diff @ diff + self.reg * norm_l21(X)
 
     def to_dict(self):
-        return dict(X=self.X, y=self.y, fit_intercept=self.fit_intercept)
+        return dict(G=self.G, M=self.M, reg=self.reg)
