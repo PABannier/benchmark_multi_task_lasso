@@ -37,7 +37,8 @@ def get_alpha_max(G, M, n_orient=1):
 class Objective(BaseObjective):
     name = "Objective"
 
-    parameters = {"reg": [0.3, 0.5, 0.7], "n_orient": [3]}
+    # parameters = {"reg": [0.3, 0.5, 0.7], "n_orient": [3]}
+    parameters = {"reg": [0.7], "n_orient": [1]}
 
     def __init__(self, reg=0.1, n_orient=1):
         self.reg = reg
@@ -49,9 +50,10 @@ class Objective(BaseObjective):
 
     def compute(self, X):
         R = self.M - self.G @ X
-        return 0.5 * norm(R, ord="fro") ** 2 + self.lmbd * norm_l21(
+        obj = 0.5 * norm(R, ord="fro") ** 2 + self.lmbd * norm_l21(
             X, self.n_orient
         )
+        return obj
 
     def to_dict(self):
         return dict(G=self.G, M=self.M, lmbd=self.lmbd, n_orient=self.n_orient)

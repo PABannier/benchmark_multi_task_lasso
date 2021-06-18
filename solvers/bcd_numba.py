@@ -112,6 +112,8 @@ class Solver(BaseSolver):
         # Make sure we cache the numba compilation.
         one_over_lc, alpha_lc, active_set, bcd_ = self._prepare_bcd()
 
+        import ipdb; ipdb.set_trace()
+
         bcd_(
             self.X, self.G, self.R, one_over_lc, n_orient, alpha_lc, active_set
         )

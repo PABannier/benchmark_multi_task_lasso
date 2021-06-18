@@ -1,10 +1,9 @@
+from pathlib import Path
 from benchopt import BaseDataset
 from benchopt import safe_import_context
 
 with safe_import_context() as import_ctx:
-    import os
     import numpy as np
-    from numpy.linalg import norm
 
 
 class Dataset(BaseDataset):
@@ -14,9 +13,9 @@ class Dataset(BaseDataset):
         pass
 
     def get_data(self):
-        cwd_path = os.getcwd()
-        g_path = os.path.join(cwd_path, "benchmark_bcd", "data", "G.npy")
-        m_path = os.path.join(cwd_path, "benchmark_bcd", "data", "M.npy")
+        data_dir = Path(__file__).parent / "data"
+        g_path = data_dir / "G.npy"
+        m_path = data_dir / "M.npy"
         G = np.load(g_path)
         M = np.load(m_path)
 
