@@ -49,12 +49,53 @@ def _block_soft_thresh(x, u):
         return (1 - u / norm_x) * x, True
 
 
+def _bcd(X, G, R, one_over_lc, n_orient, alpha_lc, active_set):
+    n_positions = X.shape[1] // n_orient
+    for j in range(n_positions):
+        idx = slice(j * n_orient, (j + 1) * n_orient)
+        G_j = G[:, idx].copy()
+        X_j = X[idx].copy()
+        X[idx], active_set[idx] = _block_soft_thresh(
+            X_j + G_j.T @ R * one_over_lc[j], alpha_lc[j]
+        )
+        if X_j[0, 0] != 0:
+            R += G_j @ X_j
+        if np.all(active_set[idx] == True):
+            R -= G_j @ X[idx]
+
+
+_bcd_numbda = njit(_bcd)
+
+
 class Solver(BaseSolver):
     """Block coordinate descent WITH Numba
     for Multi-Task LASSO
     """
 
     name = "bcd_numba"
+    stop_strategy = "callback"
+    parameters = {
+        'use_numba': (True, False)
+    }
+
+    def _prepare_bcd(self):
+        _, n_sources = self.G.shape
+        _, n_times = self.M.shape
+
+        active_set = np.zeros(n_sources, dtype=bool)
+        self.X = np.zeros((n_sources, n_times))
+        self.R = self.M.copy()
+
+        lipschitz_constants = get_lipschitz(self.G)
+        alpha_lc = self.lmbd / lipschitz_constants
+        one_over_lc = 1 / lipschitz_constants
+
+        if self.use_numba:
+            bcd_ = _bcd_numbda
+        else:
+            bcd_ = _bcd
+
+        return one_over_lc, alpha_lc, active_set, bcd_
 
     def set_objective(self, G, M, lmbd):
         self.G, self.M = G, M
@@ -62,41 +103,19 @@ class Solver(BaseSolver):
         self.lmbd = lmbd
 
         # Make sure we cache the numba compilation.
-        self.run(1)
+        one_over_lc, alpha_lc, active_set, bcd_ = self._prepare_bcd()
 
-    def run(self, n_iter):
-        _, n_sources = self.G.shape
-        _, n_times = self.M.shape
+        bcd_(
+            self.X, self.G, self.R, one_over_lc, 1, alpha_lc, active_set
+        )
 
-        active_set = np.zeros(n_sources, dtype=bool)
+    def run(self, callback):
+        one_over_lc, alpha_lc, active_set, bcd_ = self._prepare_bcd()
 
-        self.X = np.zeros((n_sources, n_times))
-        self.R = self.M - self.G @ self.X
-
-        lipschitz_constants = get_lipschitz(self.G)
-        alpha_lc = self.lmbd / lipschitz_constants
-        one_over_lc = 1 / lipschitz_constants
-
-        for _ in range(n_iter):
-            self._bcd(
+        while callback(self.X):
+            bcd_(
                 self.X, self.G, self.R, one_over_lc, 1, alpha_lc, active_set
             )
 
     def get_result(self):
         return self.X
-
-    @staticmethod
-    @njit
-    def _bcd(X, G, R, one_over_lc, n_orient, alpha_lc, active_set):
-        n_positions = X.shape[1] // n_orient
-        for j in range(n_positions):
-            idx = slice(j * n_orient, (j + 1) * n_orient)
-            G_j = G[:, idx].copy()
-            X_j = X[idx].copy()
-            X[idx], active_set[idx] = _block_soft_thresh(
-                X_j + G_j.T @ R * one_over_lc[j], alpha_lc[j]
-            )
-            if X_j[0, 0] != 0:
-                R += G_j @ X_j
-            if np.all(active_set[idx] == True):
-                R -= G_j @ X[idx]

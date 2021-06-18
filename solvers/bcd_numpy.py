@@ -51,9 +51,6 @@ class Solver(BaseSolver):
         self.G = np.asfortranarray(self.G)
         self.lmbd = lmbd
 
-        # Make sure we cache the numba compilation.
-        self.run(1)
-
     def run(self, n_iter):
         _, n_sources = self.G.shape
         _, n_times = self.M.shape
@@ -61,7 +58,7 @@ class Solver(BaseSolver):
         active_set = np.zeros(n_sources, dtype=bool)
 
         self.X = np.zeros((n_sources, n_times))
-        self.R = self.M - self.G @ self.X
+        self.R = self.M.copy()
 
         lipschitz_constants = get_lipschitz(self.G)
         alpha_lc = self.lmbd / lipschitz_constants
