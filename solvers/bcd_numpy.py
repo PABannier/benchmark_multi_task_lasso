@@ -1,24 +1,58 @@
-from os import stat
-
-import numpy as np
-from numpy.linalg import norm
-
-from numba import njit
 from benchopt import BaseSolver
+from benchopt import safe_import_context
 
-from ..utils import get_alpha_max, get_lipschitz
+
+with safe_import_context() as import_ctx:
+    import numpy as np
+    from numpy.linalg import norm
 
 
-class BCDNoNumba(BaseSolver):
-    """Block coordinate descent WITHOUT Numba
+def groups_norm2(A, n_orient):
+    """Compute squared L2 norms of groups inplace."""
+    n_positions = A.shape[0] // n_orient
+    return np.sum(np.power(A, 2, A).reshape(n_positions, -1), axis=1)
+
+
+def norm_l2inf(A, n_orient=1, copy=True):
+    """L2-inf norm."""
+    if A.size == 0:
+        return 0.0
+    if copy:
+        A = A.copy()
+    return np.sqrt(np.max(groups_norm2(A, n_orient)))
+
+
+def norm_l21(A, n_orient=1, copy=True):
+    """L21 norm."""
+    if A.size == 0:
+        return 0.0
+    if copy:
+        A = A.copy()
+    return np.sum(np.sqrt(groups_norm2(A, n_orient)))
+
+
+def get_lipschitz(G):
+    return np.sum(G * G, axis=0)
+
+
+def get_alpha_max(G, M, n_orient=1):
+    return norm_l2inf(G.T @ M, n_orient)
+
+
+class Solver(BaseSolver):
+    """Block coordinate descent WITH Numpy
     for Multi-Task LASSO
     """
 
-    name = "BCD (with Numba)"
-    parameters = {"alpha_max_frac": [0.8, 0.6, 0.3]}
+    name = "bcd_numpy"
 
-    def set_objective(self, G, M):
+    def set_objective(self, G, M, lmbd):
         self.G, self.M = G, M
+        self.G = np.asfortranarray(self.G)
+        self.lmbd = lmbd
+
+        # Make sure we cache the numba compilation.
+        self.run(1)
 
     def run(self, n_iter):
         _, n_sources = self.G.shape
@@ -26,20 +60,18 @@ class BCDNoNumba(BaseSolver):
 
         active_set = np.zeros(n_sources, dtype=bool)
 
-        alpha_max = get_alpha_max(self.G, self.M)
-        alpha = alpha_max * self.parameters["alpha_max_frac"]
-
         self.X = np.zeros((n_sources, n_times))
         self.R = self.M - self.G @ self.X
 
         lipschitz_constants = get_lipschitz(self.G)
-        alpha_lc = alpha / lipschitz_constants
-
-        self.G = np.asfortranarray(self.G)
+        alpha_lc = self.lmbd / lipschitz_constants
         one_over_lc = 1 / lipschitz_constants
 
         for _ in range(n_iter):
             self._bcd(one_over_lc, 1, alpha_lc, active_set)
+
+    def get_result(self):
+        return self.X
 
     @staticmethod
     def _block_soft_thresh(x, u):
