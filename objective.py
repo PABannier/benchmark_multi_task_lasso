@@ -31,24 +31,27 @@ def norm_l2inf(A, n_orient=1, copy=True):
 
 
 def get_alpha_max(G, M, n_orient=1):
-    return norm_l2inf(G.T @ M, n_orient)
+    return norm_l2inf(G.T @ M, n_orient, copy=False)
 
 
 class Objective(BaseObjective):
     name = "Objective"
 
-    parameters = {"reg": [0.3, 0.5, 0.7]}
+    parameters = {"reg": [0.3, 0.5, 0.7], "n_orient": [3]}
 
-    def __init__(self, reg=0.1):
+    def __init__(self, reg=0.1, n_orient=1):
         self.reg = reg
+        self.n_orient = n_orient
 
     def set_data(self, G, M):
         self.G, self.M = G, M
-        self.lmbd = self.reg * get_alpha_max(self.G, self.M)
+        self.lmbd = self.reg * get_alpha_max(self.G, self.M, self.n_orient)
 
     def compute(self, X):
         R = self.M - self.G @ X
-        return 0.5 * norm(R, ord="fro") ** 2 + self.lmbd * norm_l21(X)
+        return 0.5 * norm(R, ord="fro") ** 2 + self.lmbd * norm_l21(
+            X, self.n_orient
+        )
 
     def to_dict(self):
-        return dict(G=self.G, M=self.M, lmbd=self.lmbd)
+        return dict(G=self.G, M=self.M, lmbd=self.lmbd, n_orient=self.n_orient)

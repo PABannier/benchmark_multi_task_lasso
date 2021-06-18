@@ -32,8 +32,16 @@ def norm_l21(A, n_orient=1, copy=True):
     return np.sum(np.sqrt(groups_norm2(A, n_orient)))
 
 
-def get_lipschitz(G):
-    return np.sum(G * G, axis=0)
+def get_lipschitz(G, n_orient):
+    if n_orient == 1:
+        return np.sum(G * G, axis=0)
+    else:
+        n_positions = G.shape[1] // n_orient
+        lc = np.empty(n_positions)
+        for j in range(n_positions):
+            G_tmp = G[:, (j * n_orient) : ((j + 1) * n_orient)]
+            lc[j] = np.linalg.norm(np.dot(G_tmp.T, G_tmp), ord=2)
+        return lc
 
 
 def get_alpha_max(G, M, n_orient=1):
@@ -74,9 +82,7 @@ class Solver(BaseSolver):
 
     name = "bcd_numba"
     stop_strategy = "callback"
-    parameters = {
-        'use_numba': (True, False)
-    }
+    parameters = {"use_numba": (True, False)}
 
     def _prepare_bcd(self):
         _, n_sources = self.G.shape
@@ -86,7 +92,7 @@ class Solver(BaseSolver):
         self.X = np.zeros((n_sources, n_times))
         self.R = self.M.copy()
 
-        lipschitz_constants = get_lipschitz(self.G)
+        lipschitz_constants = get_lipschitz(self.G, self.n_orient)
         alpha_lc = self.lmbd / lipschitz_constants
         one_over_lc = 1 / lipschitz_constants
 
@@ -97,16 +103,17 @@ class Solver(BaseSolver):
 
         return one_over_lc, alpha_lc, active_set, bcd_
 
-    def set_objective(self, G, M, lmbd):
+    def set_objective(self, G, M, lmbd, n_orient):
         self.G, self.M = G, M
         self.G = np.asfortranarray(self.G)
         self.lmbd = lmbd
+        self.n_orient = n_orient
 
         # Make sure we cache the numba compilation.
         one_over_lc, alpha_lc, active_set, bcd_ = self._prepare_bcd()
 
         bcd_(
-            self.X, self.G, self.R, one_over_lc, 1, alpha_lc, active_set
+            self.X, self.G, self.R, one_over_lc, n_orient, alpha_lc, active_set
         )
 
     def run(self, callback):
@@ -114,7 +121,13 @@ class Solver(BaseSolver):
 
         while callback(self.X):
             bcd_(
-                self.X, self.G, self.R, one_over_lc, 1, alpha_lc, active_set
+                self.X,
+                self.G,
+                self.R,
+                one_over_lc,
+                self.n_orient,
+                alpha_lc,
+                active_set,
             )
 
     def get_result(self):

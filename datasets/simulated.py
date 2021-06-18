@@ -7,9 +7,9 @@ with safe_import_context() as import_ctx:
 
 
 class Dataset(BaseDataset):
-    name = "Multi task Simulated"
+    name = "Simulated"
 
-    parameters = {"n_samples, n_features, n_tasks": [(100, 500, 50)]}
+    parameters = {"n_samples, n_features, n_tasks": [(100, 300, 50)]}
 
     def __init__(
         self,
@@ -20,24 +20,19 @@ class Dataset(BaseDataset):
         snr=2,
         random_state=0,
     ):
-        self.n_samples = n_samples
-        self.n_features = n_features
+        self.n_samples, self.n_features = n_samples, n_features
         self.n_tasks = n_tasks
-        self.nnz = nnz
-        self.snr = snr
+        self.nnz, self.snr = nnz, snr
         self.random_state = random_state
 
     def get_data(self):
         rng = np.random.RandomState(self.random_state)
         G = rng.randn(self.n_samples, self.n_features)
 
-        X = np.zeros((self.n_features, self.n_tasks))
-
         support = rng.choice(self.nnz, size=self.n_features)
-
+        X = np.zeros((self.n_features, self.n_tasks))
         for k in support:
             X[k, :] = rng.normal(size=(self.n_tasks))
-
         M = G @ X
 
         noise = rng.randn(self.n_samples, self.n_tasks)
