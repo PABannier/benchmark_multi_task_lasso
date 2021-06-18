@@ -38,7 +38,7 @@ class Objective(BaseObjective):
     name = "Objective"
 
     # parameters = {"reg": [0.3, 0.5, 0.7], "n_orient": [3]}
-    parameters = {"reg": [0.7], "n_orient": [1]}
+    parameters = {"reg": [0.06], "n_orient": [3]}
 
     def __init__(self, reg=0.1, n_orient=1):
         self.reg = reg

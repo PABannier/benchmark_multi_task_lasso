@@ -66,7 +66,8 @@ def _bcd(X, G, R, one_over_lc, n_orient, alpha_lc, active_set):
         X[idx], active_set[idx] = _block_soft_thresh(
             X_j + G_j.T @ R * one_over_lc[j], alpha_lc[j]
         )
-        if X_j[0, 0] != 0:
+        # if X_j[0, 0] != 0:
+        if True:
             R += G_j @ X_j
         if np.all(active_set[idx] == True):
             R -= G_j @ X[idx]
@@ -112,8 +113,6 @@ class Solver(BaseSolver):
         # Make sure we cache the numba compilation.
         one_over_lc, alpha_lc, active_set, bcd_ = self._prepare_bcd()
 
-        import ipdb; ipdb.set_trace()
-
         bcd_(
             self.X, self.G, self.R, one_over_lc, n_orient, alpha_lc, active_set
         )
@@ -131,6 +130,12 @@ class Solver(BaseSolver):
                 alpha_lc,
                 active_set,
             )
+
+        XR = self.G.T @ (self.M - self.G @ self.X)
+
+        # import ipdb
+        # ipdb.set_trace()
+        # assert np.all(np.abs(XR) <= self.lmbd + 1e-12), "KKT check"
 
     def get_result(self):
         return self.X

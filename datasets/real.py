@@ -19,6 +19,8 @@ class Dataset(BaseDataset):
         G = np.load(g_path)
         M = np.load(m_path)
 
+        # M = M[:, M.max(axis=0).argmax()][:, np.newaxis]
+
         data = dict(G=G, M=M)
         size = G.shape[1] * M.shape[1]
 
