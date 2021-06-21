@@ -58,7 +58,7 @@ def _block_soft_thresh(x, u):
 
 
 def _bcd(X, G, R, one_over_lc, n_orient, alpha_lc, active_set):
-    n_positions = X.shape[1] // n_orient
+    n_positions = G.shape[1] // n_orient
     for j in range(n_positions):
         idx = slice(j * n_orient, (j + 1) * n_orient)
         G_j = G[:, idx].copy()

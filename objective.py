@@ -36,7 +36,7 @@ def get_alpha_max(G, M, n_orient=1):
 
 class Objective(BaseObjective):
     name = "Objective"
-    parameters = {"reg": [1], "n_orient": [3]}  # lambda max: 0.138
+    parameters = {"reg": [0.95], "n_orient": [3]}
 
     def __init__(self, reg=0.1, n_orient=1):
         self.reg = reg
@@ -52,7 +52,6 @@ class Objective(BaseObjective):
         obj = 0.5 * norm(R, ord="fro") ** 2 + self.lmbd * norm_l21(
             X, self.n_orient
         )
-        print(np.count_nonzero(X.sum(axis=-1)))
         return obj
 
     def to_dict(self):

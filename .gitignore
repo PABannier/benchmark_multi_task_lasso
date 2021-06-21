@@ -17,3 +17,6 @@ coverage.xml
 
 # Misc
 /data
+
+.json
+.pkl
