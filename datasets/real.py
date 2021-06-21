@@ -14,7 +14,7 @@ class Dataset(BaseDataset):
 
     def get_data(self):
         data_dir = Path(__file__).parent / "data"
-        g_path = data_dir / "G.npy"
+        g_path = data_dir / "G_scaled.npy"
         m_path = data_dir / "M.npy"
         G = np.load(g_path)
         M = np.load(m_path)

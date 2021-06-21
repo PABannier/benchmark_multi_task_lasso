@@ -135,7 +135,7 @@ class Solver(BaseSolver):
 
         # import ipdb
         # ipdb.set_trace()
-        # assert np.all(np.abs(XR) <= self.lmbd + 1e-12), "KKT check"
+        assert norm_l2inf(XR, self.n_orient) <= self.lmbd + 1e-12, "KKT check"
 
     def get_result(self):
         return self.X
