@@ -131,11 +131,8 @@ class Solver(BaseSolver):
                 active_set,
             )
 
-        XR = self.G.T @ (self.M - self.G @ self.X)
-
-        # import ipdb
-        # ipdb.set_trace()
-        assert norm_l2inf(XR, self.n_orient) <= self.lmbd + 1e-12, "KKT check"
+        # XR = self.G.T @ (self.M - self.G @ self.X)
+        # assert norm_l2inf(XR, self.n_orient) <= self.lmbd + 1e-12, "KKT check"
 
     def get_result(self):
         return self.X
