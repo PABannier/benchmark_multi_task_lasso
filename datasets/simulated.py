@@ -9,7 +9,12 @@ with safe_import_context() as import_ctx:
 class Dataset(BaseDataset):
     name = "Simulated"
 
-    parameters = {"n_samples, n_features, n_tasks": [(100, 300, 50)]}
+    parameters = {
+        "n_samples, n_features, n_tasks": [
+            # (100, 300, 50),
+            (302, 21000, 200),
+        ]
+    }
 
     def __init__(
         self,

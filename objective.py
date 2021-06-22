@@ -36,7 +36,7 @@ def get_alpha_max(G, M, n_orient=1):
 
 class Objective(BaseObjective):
     name = "Objective"
-    parameters = {"reg": [0.95], "n_orient": [3]}
+    parameters = {"reg": [0.3], "n_orient": [1]}
 
     def __init__(self, reg=0.1, n_orient=1):
         self.reg = reg
