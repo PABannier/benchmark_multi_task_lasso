@@ -53,16 +53,19 @@ def get_alpha_max(G, M, n_orient=1):
     return norm_l2inf(G.T @ M, n_orient)
 
 
+def primal(R, X, alpha, n_orient):
+    return 0.5 * norm(R, ord="fro") ** 2 + alpha * norm_l21(X, n_orient)
+
+
+"""
 def primal(X, Y, coef, active_set, alpha, n_orient=1):
-    """Primal objective function for multi-task
-    LASSO
-    """
     Y_hat = np.dot(X[:, active_set], coef)
     R = Y - Y_hat
     penalty = norm_l21(coef, n_orient, copy=True)
     nR2 = sum_squared(R)
     p_obj = 0.5 * nR2 + alpha * penalty
     return p_obj
+"""
 
 
 @functools.lru_cache(None)
@@ -168,7 +171,7 @@ class Solver(BaseSolver):
 
         if self.accelerated:
             n_features, n_times = self.G.shape[1], self.M.shape[1]
-            last_K_coef = np.empty((self.K + 1, n_features, n_times))
+            last_K_X = np.empty((self.K + 1, n_features, n_times))
             U = np.zeros((self.K, n_features * n_times))
 
         iter_idx = 0
@@ -185,54 +188,37 @@ class Solver(BaseSolver):
                 list_G_j_c,
             )
 
-            p_obj = primal(
-                self.G,
-                self.M,
-                self.X[active_set],
-                active_set,
-                self.lmbd,
-                self.n_orient,
-            )
+            p_obj = primal(self.R, self.X, self.lmbd, self.n_orient)
 
             if self.accelerated:
-                if iter_idx < self.K + 1:
-                    last_K_coef[iter_idx] = self.X
-                else:
-                    for k in range(self.K):
-                        last_K_coef[k] = last_K_coef[k + 1]
-                    last_K_coef[self.K - 1] = self.X
+                last_K_X[iter_idx % (self.K + 1)] = self.X
 
+                if iter_idx % (self.K + 1) == self.K:
                     for k in range(self.K):
-                        U[k] = (
-                            last_K_coef[k + 1].ravel() - last_K_coef[k].ravel()
-                        )
+                        U[k] = last_K_X[k + 1].ravel() - last_K_X[k].ravel()
                     C = np.dot(U, U.T)
 
                     try:
                         z = np.linalg.solve(C, np.ones(self.K))
                         c = z / z.sum()
                         X_acc = np.sum(
-                            last_K_coef[:-1] * c[:, None, None], axis=0
+                            last_K_X[:-1] * c[:, None, None], axis=0
                         )
                         active_set_acc = norm(X_acc, axis=1) != 0
 
+                        R_acc = (
+                            self.M
+                            - self.G[:, active_set_acc] @ X_acc[active_set_acc]
+                        )
                         p_obj_acc = primal(
-                            self.G,
-                            self.M,
-                            X_acc[active_set_acc],
-                            active_set_acc,
-                            self.lmbd,
-                            self.n_orient,
+                            R_acc, X_acc, self.lmbd, self.n_orient
                         )
 
                         if p_obj_acc < p_obj:
-                            print("IT WORKS")
+                            print("IT WORKS (%s < %s)" % (p_obj_acc, p_obj))
                             self.X = X_acc
                             active_set = active_set_acc
-                            self.R = (
-                                self.M
-                                - self.G[:, active_set] @ self.X[active_set]
-                            )
+                            self.R = R_acc
 
                     except np.linalg.LinAlgError:
                         print("LinAlgError")
