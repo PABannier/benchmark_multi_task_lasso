@@ -211,7 +211,7 @@ def bcd_(
                     print("LinAlg Error")
 
         if gap < tol:
-            print(f"Fitting ended after iteration {iter_idx + 1}.")
+            # print(f"Fitting ended after iteration {iter_idx + 1}.")
             break
 
     coef = coef[active_set]
