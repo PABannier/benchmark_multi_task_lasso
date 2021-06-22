@@ -33,16 +33,8 @@ def norm_l21(A, n_orient=1, copy=True):
     return np.sum(np.sqrt(groups_norm2(A, n_orient)))
 
 
-def get_lipschitz(X, n_orient):
-    if n_orient == 1:
-        return np.sum(X * X, axis=0)
-    else:
-        n_positions = X.shape[1] // n_orient
-        lc = np.empty(n_positions)
-        for j in range(n_positions):
-            X_tmp = X[:, (j * n_orient) : ((j + 1) * n_orient)]
-            lc[j] = np.linalg.norm(np.dot(X_tmp.T, X_tmp), ord=2)
-        return lc
+def get_lipschitz(X):
+    return 1.01 * np.linalg.norm(X, ord=2) ** 2
 
 
 def sum_squared(X):
@@ -86,148 +78,110 @@ def _get_blas_funcs(dtype, names):
     return linalg.get_blas_funcs(names, (np.empty(0, dtype),))
 
 
-def bcd_(
+def prox_l21(Y, alpha, n_orient, shape=None):
+    if len(Y) == 0:
+        return np.zeros_like(Y), np.zeros((0,), dtype=bool)
+    if shape is not None:
+        shape_init = Y.shape
+        Y = Y.reshape(*shape)
+    n_positions = Y.shape[0] // n_orient
+
+    rows_norm = np.sqrt(
+        (Y * Y.conj()).real.reshape(n_positions, -1).sum(axis=1)
+    )
+    # Ensure shrink is >= 0 while avoiding any division by zero
+    shrink = np.maximum(1.0 - alpha / np.maximum(rows_norm, alpha), 0.0)
+    active_set = shrink > 0.0
+    if n_orient > 1:
+        active_set = np.tile(active_set[:, None], [1, n_orient]).ravel()
+        shrink = np.tile(shrink[:, None], [1, n_orient]).ravel()
+    Y = Y[active_set]
+    if shape is None:
+        Y *= shrink[active_set][:, np.newaxis]
+    else:
+        Y *= shrink[active_set][:, np.newaxis, np.newaxis]
+        Y = Y.reshape(-1, *shape_init[1:])
+    return Y, active_set
+
+
+def pgd_(
     X,
     Y,
     lipschitz,
     init,
     _alpha,
     n_orient,
-    accelerated,
-    K=5,
-    max_iter=2000,
+    dgap_freq=10,
+    max_iter=200,
     tol=1e-5,
 ):
     n_samples, n_times = Y.shape
     n_samples, n_features = X.shape
-    n_positions = n_features // n_orient
+
+    if n_features < n_samples:
+        gram = np.dot(X.T, X)
+        GTM = np.dot(X.T, Y)
+    else:
+        gram = None
 
     if init is None:
-        coef = np.zeros((n_features, n_times))
+        W = 0.0
         R = Y.copy()
+        if gram is not None:
+            R = np.dot(X.T, R)
     else:
-        coef = init
-        R = Y - X @ coef
+        W = init
+        if gram is None:
+            R = Y - np.dot(X, W)
+        else:
+            R = GTM - np.dot(gram, W)
 
-    X = X if np.isfortran(X) else np.asfortranarray(X)
-
-    if accelerated:
-        last_K_coef = np.empty((K + 1, n_features, n_times))
-        U = np.zeros((K, n_features * n_times))
-
+    t = 1.0
+    B = np.zeros((n_features, n_times))  # FISTA aux variable
     highest_d_obj = -np.inf
-    active_set = np.zeros(n_features, dtype=bool)
+    active_set = np.ones(n_features, dtype=bool)  # start with full AS
 
-    for iter_idx in range(max_iter):
-        coef_j_new = np.zeros_like(coef[:n_orient, :], order="C")
-        dgemm = _get_dgemm()
+    for i in range(max_iter):
+        W0, active_set_0 = W, active_set
+        if gram is None:
+            B += np.dot(X.T, R) / lipschitz  # ISTA step
+        else:
+            B += R / lipschitz  # ISTA step
+        W, active_set = prox_l21(B, _alpha / lipschitz, n_orient)
 
-        for j in range(n_positions):
-            idx = slice(j * n_orient, (j + 1) * n_orient)
-            coef_j = coef[idx]
-            X_j = X[:, idx]
+        t0 = t
+        t = 0.5 * (1.0 + np.sqrt(1.0 + 4.0 * t ** 2))
+        B.fill(0.0)
+        dt = (t0 - 1.0) / t
+        B[active_set] = (1.0 + dt) * W
+        B[active_set_0] -= dt * W0
+        B_as = active_set_0 | active_set
 
-            dgemm(
-                alpha=1 / lipschitz[j],
-                beta=0.0,
-                a=R.T,
-                b=X_j,
-                c=coef_j_new.T,
-                overwrite_c=True,
+        if gram is None:
+            R = Y - np.dot(X[:, B_as], B[B_as])
+        else:
+            R = GTM - np.dot(gram[:, B_as], B[B_as])
+
+        if (i + 1) % dgap_freq == 0:
+            _, p_obj, d_obj = get_duality_gap(
+                X, Y, W, active_set, _alpha, n_orient
             )
+            highest_d_obj = max(d_obj, highest_d_obj)
+            gap = p_obj - highest_d_obj
+            if gap < tol:
+                break
 
-            if coef_j[0, 0] != 0:
-                dgemm(
-                    alpha=1.0,
-                    beta=1.0,
-                    a=coef_j.T,
-                    b=X_j.T,
-                    c=R.T,
-                    overwrite_c=True,
-                )
-                coef_j_new += coef_j
-
-            block_norm = np.sqrt(sum_squared(coef_j_new))
-            alpha_lc = _alpha / lipschitz[j]
-
-            if block_norm <= alpha_lc:
-                coef_j.fill(0.0)
-                active_set[idx] = False
-            else:
-                shrink = max(1.0 - alpha_lc / block_norm, 0.0)
-                coef_j_new *= shrink
-
-                dgemm(
-                    alpha=-1.0,
-                    beta=1.0,
-                    a=coef_j_new.T,
-                    b=X_j.T,
-                    c=R.T,
-                    overwrite_c=True,
-                )
-                coef_j[:] = coef_j_new
-                active_set[idx] = True
-
-        _, p_obj, d_obj = get_duality_gap(
-            X, Y, coef[active_set], active_set, _alpha, n_orient
-        )
-        highest_d_obj = max(d_obj, highest_d_obj)
-        gap = p_obj - highest_d_obj
-
-        if gap < tol:
-            break
-
-        if accelerated:
-            last_K_coef[iter_idx % (K + 1)] = coef
-
-            if iter_idx % (K + 1) == K:
-                for k in range(K):
-                    U[k] = last_K_coef[k + 1].ravel() - last_K_coef[k].ravel()
-
-                C = U @ U.T
-
-                try:
-                    z = np.linalg.solve(C, np.ones(K))
-                    c = z / z.sum()
-
-                    coef_acc = np.sum(
-                        last_K_coef[:-1] * c[:, None, None], axis=0
-                    )
-                    active_set_acc = norm(coef_acc, axis=1) != 0
-
-                    p_obj_acc = get_duality_gap(
-                        X,
-                        Y,
-                        coef_acc[active_set_acc],
-                        active_set_acc,
-                        _alpha,
-                        n_orient,
-                        primal_only=True,
-                    )
-
-                    if p_obj_acc < p_obj:
-                        coef = coef_acc
-                        active_set = active_set_acc
-                        R = Y - X[:, active_set] @ coef[active_set]
-
-                except np.linalg.LinAlgError:
-                    print("LinAlg Error")
-
-    coef = coef[active_set]
-    return coef, active_set
+    return W, active_set
 
 
 class Solver(BaseSolver):
-    """Block coordinate descent with
-    low-level BLAS function calls"""
+    """Proximal gradient descent"""
 
-    name = "bcd_blas_low_level"
+    name = "pgd"
     stop_strategy = "callback"
-    parameters = {"accelerated": (True, False)}
 
     def set_objective(self, X, Y, lmbd, n_orient):
         self.X, self.Y = X, Y
-        self.X = np.asfortranarray(self.X)
         self.lmbd = lmbd
         self.n_orient = n_orient
         self.active_set_size = 10
@@ -238,7 +192,7 @@ class Solver(BaseSolver):
         n_features = self.X.shape[1]
         n_times = self.Y.shape[1]
 
-        lipschitz_consts = get_lipschitz(self.X, self.n_orient)
+        lipschitz_consts = get_lipschitz(self.X)
 
         # Initializing active set
         active_set = np.zeros(n_features, dtype=bool)
@@ -260,18 +214,18 @@ class Solver(BaseSolver):
         iter_idx = 0
 
         while callback(self.W):
-            lipschitz_consts_tmp = lipschitz_consts[
-                active_set[:: self.n_orient]
-            ]
+            lipschitz_consts_tmp = (
+                1.01 * norm(self.X[:, active_set], ord=2) ** 2
+            )
 
-            coef, as_ = bcd_(
+            coef, as_ = pgd_(
                 self.X[:, active_set],
                 self.Y,
                 lipschitz_consts_tmp,
                 coef_init,
                 self.lmbd,
                 self.n_orient,
-                accelerated=self.accelerated,
+                max_iter=self.max_iter,
             )
 
             active_set[active_set] = as_.copy()
