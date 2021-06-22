@@ -86,14 +86,14 @@ class Solver(BaseSolver):
     parameters = {"use_numba": (True, False)}
 
     def _prepare_bcd(self):
-        _, n_sources = self.G.shape
-        _, n_times = self.M.shape
+        _, n_sources = self.X.shape
+        _, n_times = self.Y.shape
 
         active_set = np.zeros(n_sources, dtype=bool)
-        self.X = np.zeros((n_sources, n_times))
-        self.R = self.M.copy()
+        self.W = np.zeros((n_sources, n_times))
+        self.R = self.Y.copy()
 
-        lipschitz_constants = get_lipschitz(self.G, self.n_orient)
+        lipschitz_constants = get_lipschitz(self.X, self.n_orient)
         alpha_lc = self.lmbd / lipschitz_constants
         one_over_lc = 1 / lipschitz_constants
 
@@ -104,9 +104,9 @@ class Solver(BaseSolver):
 
         return one_over_lc, alpha_lc, active_set, bcd_
 
-    def set_objective(self, G, M, lmbd, n_orient):
-        self.G, self.M = G, M
-        self.G = np.asfortranarray(self.G)
+    def set_objective(self, X, Y, lmbd, n_orient):
+        self.X, self.Y = X, Y
+        self.X = np.asfortranarray(self.X)
         self.lmbd = lmbd
         self.n_orient = n_orient
 
@@ -114,16 +114,16 @@ class Solver(BaseSolver):
         one_over_lc, alpha_lc, active_set, bcd_ = self._prepare_bcd()
 
         bcd_(
-            self.X, self.G, self.R, one_over_lc, n_orient, alpha_lc, active_set
+            self.W, self.X, self.R, one_over_lc, n_orient, alpha_lc, active_set
         )
 
     def run(self, callback):
         one_over_lc, alpha_lc, active_set, bcd_ = self._prepare_bcd()
 
-        while callback(self.X):
+        while callback(self.W):
             bcd_(
+                self.W,
                 self.X,
-                self.G,
                 self.R,
                 one_over_lc,
                 self.n_orient,
@@ -135,4 +135,4 @@ class Solver(BaseSolver):
         # assert norm_l2inf(XR, self.n_orient) <= self.lmbd + 1e-12, "KKT check"
 
     def get_result(self):
-        return self.X
+        return self.W

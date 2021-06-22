@@ -1,5 +1,6 @@
 from benchopt import BaseSolver
 from benchopt import safe_import_context
+from numpy.core.numeric import isfortran
 
 
 with safe_import_context() as import_ctx:
@@ -32,15 +33,15 @@ def norm_l21(A, n_orient=1, copy=True):
     return np.sum(np.sqrt(groups_norm2(A, n_orient)))
 
 
-def get_lipschitz(G, n_orient):
+def get_lipschitz(X, n_orient):
     if n_orient == 1:
-        return np.sum(G * G, axis=0)
+        return np.sum(X * X, axis=0)
     else:
-        n_positions = G.shape[1] // n_orient
+        n_positions = X.shape[1] // n_orient
         lc = np.empty(n_positions)
         for j in range(n_positions):
-            G_tmp = G[:, (j * n_orient) : ((j + 1) * n_orient)]
-            lc[j] = np.linalg.norm(np.dot(G_tmp.T, G_tmp), ord=2)
+            X_tmp = X[:, (j * n_orient) : ((j + 1) * n_orient)]
+            lc[j] = np.linalg.norm(np.dot(X_tmp.T, X_tmp), ord=2)
         return lc
 
 
@@ -49,23 +50,28 @@ def sum_squared(X):
     return np.dot(X_flat, X_flat)
 
 
-def get_alpha_max(G, M, n_orient=1):
-    return norm_l2inf(G.T @ M, n_orient)
+def get_alpha_max(X, Y, n_orient=1):
+    return norm_l2inf(X.T @ Y, n_orient)
 
 
-def primal(R, X, alpha, n_orient):
-    return 0.5 * norm(R, ord="fro") ** 2 + alpha * norm_l21(X, n_orient)
-
-
-"""
-def primal(X, Y, coef, active_set, alpha, n_orient=1):
-    Y_hat = np.dot(X[:, active_set], coef)
+def get_duality_gap(X, Y, W, active_set, alpha, n_orient=1, primal_only=False):
+    Y_hat = np.dot(X[:, active_set], W)
     R = Y - Y_hat
-    penalty = norm_l21(coef, n_orient, copy=True)
+    penalty = norm_l21(W, n_orient, copy=True)
     nR2 = sum_squared(R)
     p_obj = 0.5 * nR2 + alpha * penalty
-    return p_obj
-"""
+
+    if primal_only:
+        return p_obj
+
+    dual_norm = norm_l2inf(np.dot(X.T, R), n_orient, copy=False)
+    scaling = alpha / dual_norm
+    scaling = min(scaling, 1.0)
+    d_obj = (scaling - 0.5 * (scaling ** 2)) * nR2 + scaling * np.sum(
+        R * Y_hat
+    )
+    gap = p_obj - d_obj
+    return gap, p_obj, d_obj
 
 
 @functools.lru_cache(None)
@@ -80,55 +86,136 @@ def _get_blas_funcs(dtype, names):
     return linalg.get_blas_funcs(names, (np.empty(0, dtype),))
 
 
-def bcd(X, G, R, one_over_lc, n_orient, alpha_lc, active_set, list_G_j_c):
-    X_j_new = np.zeros_like(X[0:n_orient, :], order="C")
-    dgemm = _get_dgemm()
+def bcd_(
+    X,
+    Y,
+    lipschitz,
+    init,
+    _alpha,
+    n_orient,
+    accelerated,
+    K=5,
+    max_iter=2000,
+    tol=1e-5,
+):
+    n_samples, n_times = Y.shape
+    n_samples, n_features = X.shape
+    n_positions = n_features // n_orient
 
-    for j, G_j_c in enumerate(list_G_j_c):
-        idx = slice(j * n_orient, (j + 1) * n_orient)
-        G_j = G[:, idx]
-        X_j = X[idx]
-        dgemm(
-            alpha=one_over_lc[j],
-            beta=0.0,
-            a=R.T,
-            b=G_j,
-            c=X_j_new.T,
-            overwrite_c=True,
+    if init is None:
+        coef = np.zeros((n_features, n_times))
+        R = Y.copy()
+    else:
+        coef = init
+        R = Y - X @ coef
+
+    X = X if np.isfortran(X) else np.asfortranarray(X)
+
+    if accelerated:
+        last_K_coef = np.empty((K + 1, n_features, n_times))
+        U = np.zeros((K, n_features * n_times))
+
+    highest_d_obj = -np.inf
+    active_set = np.zeros(n_features, dtype=bool)
+
+    for iter_idx in range(max_iter):
+        coef_j_new = np.zeros_like(coef[:n_orient, :], order="C")
+        dgemm = _get_dgemm()
+
+        for j in range(n_positions):
+            idx = slice(j * n_orient, (j + 1) * n_orient)
+            coef_j = coef[idx]
+            X_j = X[:, idx]
+
+            dgemm(
+                alpha=1 / lipschitz[j],
+                beta=0.0,
+                a=R.T,
+                b=X_j,
+                c=coef_j_new.T,
+                overwrite_c=True,
+            )
+
+            if coef_j[0, 0] != 0:
+                dgemm(
+                    alpha=1.0,
+                    beta=1.0,
+                    a=coef_j.T,
+                    b=X_j.T,
+                    c=R.T,
+                    overwrite_c=True,
+                )
+                coef_j_new += coef_j
+
+            block_norm = np.sqrt(sum_squared(coef_j_new))
+            alpha_lc = _alpha / lipschitz[j]
+
+            if block_norm <= alpha_lc:
+                coef_j.fill(0.0)
+                active_set[idx] = False
+            else:
+                shrink = max(1.0 - alpha_lc / block_norm, 0.0)
+                coef_j_new *= shrink
+
+                dgemm(
+                    alpha=-1.0,
+                    beta=1.0,
+                    a=coef_j_new.T,
+                    b=X_j.T,
+                    c=R.T,
+                    overwrite_c=True,
+                )
+                coef_j[:] = coef_j_new
+                active_set[idx] = True
+
+        _, p_obj, d_obj = get_duality_gap(
+            X, Y, coef[active_set], active_set, _alpha, n_orient
         )
-        # X_j_new = G_j.T @ R
-        # Mathurin's trick to avoid checking all the entries
-        was_non_zero = X_j[0, 0] != 0
-        # was_non_zero = np.any(X_j)
-        if was_non_zero:
-            dgemm(
-                alpha=1.0,
-                beta=1.0,
-                a=X_j.T,
-                b=G_j_c.T,
-                c=R.T,
-                overwrite_c=True,
-            )
-            # R += np.dot(G_j, X_j)
-            X_j_new += X_j
-        block_norm = np.sqrt(sum_squared(X_j_new))
-        if block_norm <= alpha_lc[j]:
-            X_j.fill(0.0)
-            active_set[idx] = False
-        else:
-            shrink = max(1.0 - alpha_lc[j] / block_norm, 0.0)
-            X_j_new *= shrink
-            dgemm(
-                alpha=-1.0,
-                beta=1.0,
-                a=X_j_new.T,
-                b=G_j_c.T,
-                c=R.T,
-                overwrite_c=True,
-            )
-            # R -= np.dot(G_j, X_j_new)
-            X_j[:] = X_j_new
-            active_set[idx] = True
+        highest_d_obj = max(d_obj, highest_d_obj)
+        gap = p_obj - highest_d_obj
+
+        if accelerated:
+            last_K_coef[iter_idx % (K + 1)] = coef
+
+            if iter_idx % (K + 1) == K:
+                for k in range(K):
+                    U[k] = last_K_coef[k + 1].ravel() - last_K_coef[k].ravel()
+
+                C = U @ U.T
+
+                try:
+                    z = np.linalg.solve(C, np.ones(K))
+                    c = z / z.sum()
+
+                    coef_acc = np.sum(
+                        last_K_coef[:-1] * c[:, None, None], axis=0
+                    )
+                    active_set_acc = norm(coef_acc, axis=1) != 0
+
+                    p_obj_acc = get_duality_gap(
+                        X,
+                        Y,
+                        coef_acc[active_set_acc],
+                        active_set_acc,
+                        _alpha,
+                        n_orient,
+                        primal_only=True,
+                    )
+
+                    if p_obj_acc < p_obj:
+                        coef = coef_acc
+                        active_set = active_set_acc
+                        R = Y - X[:, active_set] @ coef[active_set]
+
+                except np.linalg.LinAlgError:
+                    print("LinAlg Error")
+
+        if gap < tol:
+            print(f"Fitting ended after iteration {iter_idx + 1}.")
+            break
+
+    coef = coef[active_set]
+    return coef, active_set
 
 
 class Solver(BaseSolver):
@@ -139,94 +226,90 @@ class Solver(BaseSolver):
     stop_strategy = "callback"
     parameters = {"accelerated": (True, False)}
 
-    def _prepare_bcd(self):
-        _, n_sources = self.G.shape
-        _, n_times = self.M.shape
-        n_positions = n_sources // self.n_orient
-
-        active_set = np.zeros(n_sources, dtype=bool)
-        self.X = np.zeros((n_sources, n_times))
-        self.R = self.M.copy()
-
-        lipschitz_constants = get_lipschitz(self.G, self.n_orient)
-        alpha_lc = self.lmbd / lipschitz_constants
-        one_over_lc = 1 / lipschitz_constants
-
-        list_G_j_c = []
-        for j in range(n_positions):
-            idx = slice(j * self.n_orient, (j + 1) * self.n_orient)
-            list_G_j_c.append(np.ascontiguousarray(self.G[:, idx]))
-
-        return one_over_lc, alpha_lc, active_set, list_G_j_c
-
-    def set_objective(self, G, M, lmbd, n_orient):
-        self.G, self.M = G, M
-        self.G = np.asfortranarray(self.G)
+    def set_objective(self, X, Y, lmbd, n_orient):
+        self.X, self.Y = X, Y
+        self.X = np.asfortranarray(self.X)
         self.lmbd = lmbd
         self.n_orient = n_orient
-        self.K = 5
+        self.active_set_size = 10
+        self.tol = 1e-5
+        self.max_iter = 2000
 
     def run(self, callback):
-        one_over_lc, alpha_lc, active_set, list_G_j_c = self._prepare_bcd()
+        n_features = self.X.shape[1]
+        n_times = self.Y.shape[1]
 
-        if self.accelerated:
-            n_features, n_times = self.G.shape[1], self.M.shape[1]
-            last_K_X = np.empty((self.K + 1, n_features, n_times))
-            U = np.zeros((self.K, n_features * n_times))
+        lipschitz_consts = get_lipschitz(self.X, self.n_orient)
 
+        # Initializing active set
+        active_set = np.zeros(n_features, dtype=bool)
+        idx_large_corr = np.argsort(
+            groups_norm2(np.dot(self.X.T, self.Y), self.n_orient)
+        )
+        new_active_idx = idx_large_corr[-self.active_set_size :]
+        if self.n_orient > 1:
+            new_active_idx = (
+                self.n_orient * new_active_idx[:, None]
+                + np.arange(self.n_orient)[None, :]
+            ).ravel()
+
+        active_set[new_active_idx] = True
+        as_size = np.sum(active_set)
+
+        coef_init = None
+        self.W = np.zeros((n_features, n_times))
         iter_idx = 0
 
-        while callback(self.X):
-            bcd(
-                self.X,
-                self.G,
-                self.R,
-                one_over_lc,
+        while callback(self.W):
+            lipschitz_consts_tmp = lipschitz_consts[
+                active_set[:: self.n_orient]
+            ]
+
+            coef, as_ = bcd_(
+                self.X[:, active_set],
+                self.Y,
+                lipschitz_consts_tmp,
+                coef_init,
+                self.lmbd,
                 self.n_orient,
-                alpha_lc,
-                active_set,
-                list_G_j_c,
+                accelerated=self.accelerated,
             )
 
-            p_obj = primal(self.R, self.X, self.lmbd, self.n_orient)
+            active_set[active_set] = as_.copy()
+            idx_old_active_set = np.where(active_set)[0]
 
-            if self.accelerated:
-                last_K_X[iter_idx % (self.K + 1)] = self.X
+            self.build_full_coefficient_matrix(active_set, n_times, coef)
 
-                if iter_idx % (self.K + 1) == self.K:
-                    for k in range(self.K):
-                        U[k] = last_K_X[k + 1].ravel() - last_K_X[k].ravel()
-                    C = np.dot(U, U.T)
+            if iter_idx < (self.max_iter - 1):
+                R = self.Y - self.X[:, active_set] @ coef
+                idx_large_corr = np.argsort(
+                    groups_norm2(np.dot(self.X.T, R), self.n_orient)
+                )
+                new_active_idx = idx_large_corr[-self.active_set_size :]
 
-                    try:
-                        z = np.linalg.solve(C, np.ones(self.K))
-                        c = z / z.sum()
-                        X_acc = np.sum(
-                            last_K_X[:-1] * c[:, None, None], axis=0
-                        )
-                        active_set_acc = norm(X_acc, axis=1) != 0
+                if self.n_orient > 1:
+                    new_active_idx = (
+                        self.n_orient * new_active_idx[:, None]
+                        + np.arange(self.n_orient)[None, :]
+                    )
+                    new_active_idx = new_active_idx.ravel()
 
-                        R_acc = (
-                            self.M
-                            - self.G[:, active_set_acc] @ X_acc[active_set_acc]
-                        )
-                        p_obj_acc = primal(
-                            R_acc, X_acc, self.lmbd, self.n_orient
-                        )
-
-                        if p_obj_acc < p_obj:
-                            print("IT WORKS (%s < %s)" % (p_obj_acc, p_obj))
-                            self.X = X_acc
-                            active_set = active_set_acc
-                            self.R = R_acc
-
-                    except np.linalg.LinAlgError:
-                        print("LinAlgError")
+                active_set[new_active_idx] = True
+                idx_active_set = np.where(active_set)[0]
+                as_size = np.sum(active_set)
+                coef_init = np.zeros((as_size, n_times), dtype=coef.dtype)
+                idx = np.searchsorted(idx_active_set, idx_old_active_set)
+                coef_init[idx] = coef
 
             iter_idx += 1
 
-        # XR = self.G.T @ (self.M - self.G @ self.X)
-        # assert norm_l2inf(XR, self.n_orient) <= self.lmbd + 1e-12, "KKT check"
+    def build_full_coefficient_matrix(self, active_set, n_times, coef):
+        """Building full coefficient matrix and filling active set with
+        non-zero coefficients"""
+        final_coef_ = np.zeros((len(active_set), n_times))
+        if coef is not None:
+            final_coef_[active_set] = coef
+        self.W = final_coef_
 
     def get_result(self):
-        return self.X
+        return self.W

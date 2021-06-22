@@ -12,7 +12,7 @@ class Dataset(BaseDataset):
     parameters = {
         "n_samples, n_features, n_tasks": [
             # (100, 300, 50),
-            (302, 21000, 200),
+            (302, 9000, 200),
         ]
     }
 
@@ -32,19 +32,19 @@ class Dataset(BaseDataset):
 
     def get_data(self):
         rng = np.random.RandomState(self.random_state)
-        G = rng.randn(self.n_samples, self.n_features)
+        X = rng.randn(self.n_samples, self.n_features)
 
         support = rng.choice(self.nnz, size=self.n_features)
-        X = np.zeros((self.n_features, self.n_tasks))
+        W = np.zeros((self.n_features, self.n_tasks))
         for k in support:
-            X[k, :] = rng.normal(size=(self.n_tasks))
-        M = G @ X
+            W[k, :] = rng.normal(size=(self.n_tasks))
+        Y = X @ W
 
         noise = rng.randn(self.n_samples, self.n_tasks)
-        sigma = 1 / norm(noise) * norm(M) / self.snr
+        sigma = 1 / norm(noise) * norm(Y) / self.snr
 
-        M += sigma * noise
+        Y += sigma * noise
 
-        data = dict(G=G, M=M)
+        data = dict(X=X, Y=Y)
 
         return X.size, data

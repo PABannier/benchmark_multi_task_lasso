@@ -18,5 +18,8 @@ coverage.xml
 # Misc
 /data
 
-.json
-.pkl
+*.json
+*.pkl
+*.npy
+
+func_code.py

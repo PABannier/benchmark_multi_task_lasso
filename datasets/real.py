@@ -16,12 +16,10 @@ class Dataset(BaseDataset):
         data_dir = Path(__file__).parent / "data"
         g_path = data_dir / "G_scaled.npy"
         m_path = data_dir / "M.npy"
-        G = np.load(g_path)
-        M = np.load(m_path)
+        X = np.load(g_path)
+        Y = np.load(m_path)
 
-        # M = M[:, M.max(axis=0).argmax()][:, np.newaxis]
-
-        data = dict(G=G, M=M)
-        size = G.shape[1] * M.shape[1]
+        data = dict(X=X, Y=Y)
+        size = X.shape[1] * Y.shape[1]
 
         return size, data

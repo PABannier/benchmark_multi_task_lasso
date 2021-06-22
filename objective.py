@@ -30,29 +30,29 @@ def norm_l2inf(A, n_orient=1, copy=True):
     return np.sqrt(np.max(groups_norm2(A, n_orient)))
 
 
-def get_alpha_max(G, M, n_orient=1):
-    return norm_l2inf(G.T @ M, n_orient, copy=False)
+def get_alpha_max(X, Y, n_orient=1):
+    return norm_l2inf(X.T @ Y, n_orient, copy=False)
 
 
 class Objective(BaseObjective):
     name = "Objective"
-    parameters = {"reg": [0.3], "n_orient": [1]}
+    parameters = {"reg": [0.1], "n_orient": [3]}
 
     def __init__(self, reg=0.1, n_orient=1):
         self.reg = reg
         self.n_orient = n_orient
 
-    def set_data(self, G, M):
-        self.G, self.M = G, M
-        self.alpha_max = get_alpha_max(self.G, self.M, self.n_orient)
+    def set_data(self, X, Y):
+        self.X, self.Y = X, Y
+        self.alpha_max = get_alpha_max(self.X, self.Y, self.n_orient)
         self.lmbd = self.reg * self.alpha_max
 
-    def compute(self, X):
-        R = self.M - self.G @ X
+    def compute(self, W):
+        R = self.Y - self.X @ W
         obj = 0.5 * norm(R, ord="fro") ** 2 + self.lmbd * norm_l21(
-            X, self.n_orient
+            W, self.n_orient
         )
         return obj
 
     def to_dict(self):
-        return dict(G=self.G, M=self.M, lmbd=self.lmbd, n_orient=self.n_orient)
+        return dict(X=self.X, Y=self.Y, lmbd=self.lmbd, n_orient=self.n_orient)
