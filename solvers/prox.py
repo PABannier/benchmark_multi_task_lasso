@@ -185,7 +185,7 @@ class Solver(BaseSolver):
         self.lmbd = lmbd
         self.n_orient = n_orient
         self.active_set_size = 10
-        self.tol = 1e-8
+        self.tol = 1e-12
         self.max_iter = 3000
 
     def run(self, callback):
@@ -197,7 +197,7 @@ class Solver(BaseSolver):
         idx_large_corr = np.argsort(
             groups_norm2(np.dot(self.X.T, self.Y), self.n_orient)
         )
-        new_active_idx = idx_large_corr[-self.active_set_size :]
+        new_active_idx = idx_large_corr[-self.active_set_size:]
         if self.n_orient > 1:
             new_active_idx = (
                 self.n_orient * new_active_idx[:, None]
@@ -209,15 +209,13 @@ class Solver(BaseSolver):
 
         coef_init = None
         self.W = np.zeros((n_features, n_times))
-        iter_idx = 0
 
         while callback(self.W):
-            lipschitz_consts_tmp = (
-                1.01 * norm(self.X[:, active_set], ord=2) ** 2
-            )
+            X_as = self.X[:, active_set]
+            lipschitz_consts_tmp = norm(X_as, ord=2) ** 2
 
             coef, as_ = pgd_(
-                self.X[:, active_set],
+                X_as,
                 self.Y,
                 lipschitz_consts_tmp,
                 coef_init,
@@ -232,28 +230,25 @@ class Solver(BaseSolver):
 
             self.build_full_coefficient_matrix(active_set, n_times, coef)
 
-            if iter_idx < (self.max_iter - 1):
-                R = self.Y - self.X[:, active_set] @ coef
-                idx_large_corr = np.argsort(
-                    groups_norm2(np.dot(self.X.T, R), self.n_orient)
+            R = self.Y - self.X[:, active_set] @ coef
+            idx_large_corr = np.argsort(
+                groups_norm2(np.dot(self.X.T, R), self.n_orient)
+            )
+            new_active_idx = idx_large_corr[-self.active_set_size:]
+
+            if self.n_orient > 1:
+                new_active_idx = (
+                    self.n_orient * new_active_idx[:, None]
+                    + np.arange(self.n_orient)[None, :]
                 )
-                new_active_idx = idx_large_corr[-self.active_set_size :]
+                new_active_idx = new_active_idx.ravel()
 
-                if self.n_orient > 1:
-                    new_active_idx = (
-                        self.n_orient * new_active_idx[:, None]
-                        + np.arange(self.n_orient)[None, :]
-                    )
-                    new_active_idx = new_active_idx.ravel()
-
-                active_set[new_active_idx] = True
-                idx_active_set = np.where(active_set)[0]
-                as_size = np.sum(active_set)
-                coef_init = np.zeros((as_size, n_times), dtype=coef.dtype)
-                idx = np.searchsorted(idx_active_set, idx_old_active_set)
-                coef_init[idx] = coef
-
-            iter_idx += 1
+            active_set[new_active_idx] = True
+            idx_active_set = np.where(active_set)[0]
+            as_size = np.sum(active_set)
+            coef_init = np.zeros((as_size, n_times), dtype=coef.dtype)
+            idx = np.searchsorted(idx_active_set, idx_old_active_set)
+            coef_init[idx] = coef
 
     def build_full_coefficient_matrix(self, active_set, n_times, coef):
         """Building full coefficient matrix and filling active set with
