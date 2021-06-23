@@ -188,8 +188,8 @@ class Solver(BaseSolver):
         self.lmbd = lmbd
         self.n_orient = n_orient
         self.active_set_size = 10
-        self.max_iter = 2000
-        self.tol = 1e-5
+        self.max_iter = 3000
+        self.tol = 1e-8
 
         # Make sure we cache the numba compilation.
         lipschitz, active_set, bcd_ = self._prepare_bcd()
@@ -217,6 +217,8 @@ class Solver(BaseSolver):
                 self.lmbd,
                 self.n_orient,
                 bcd_,
+                max_iter=self.max_iter,
+                tol=self.tol,
             )
 
             active_set[active_set] = as_.copy()

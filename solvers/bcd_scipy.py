@@ -231,8 +231,8 @@ class Solver(BaseSolver):
         self.lmbd = lmbd
         self.n_orient = n_orient
         self.active_set_size = 10
-        self.tol = 1e-5
-        self.max_iter = 2000
+        self.tol = 1e-8
+        self.max_iter = 3000
 
     def run(self, callback):
         n_features = self.X.shape[1]
@@ -272,6 +272,8 @@ class Solver(BaseSolver):
                 self.lmbd,
                 self.n_orient,
                 accelerated=self.accelerated,
+                max_iter=self.max_iter,
+                tol=self.tol,
             )
 
             active_set[active_set] = as_.copy()

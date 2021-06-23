@@ -113,10 +113,10 @@ def pgd_(
     n_orient,
     dgap_freq=10,
     max_iter=200,
-    tol=1e-5,
+    tol=1e-8,
 ):
     n_samples, n_times = Y.shape
-    n_samples, n_features = X.shape
+    _, n_features = X.shape
 
     if n_features < n_samples:
         gram = np.dot(X.T, X)
@@ -185,14 +185,12 @@ class Solver(BaseSolver):
         self.lmbd = lmbd
         self.n_orient = n_orient
         self.active_set_size = 10
-        self.tol = 1e-5
-        self.max_iter = 2000
+        self.tol = 1e-8
+        self.max_iter = 3000
 
     def run(self, callback):
         n_features = self.X.shape[1]
         n_times = self.Y.shape[1]
-
-        lipschitz_consts = get_lipschitz(self.X)
 
         # Initializing active set
         active_set = np.zeros(n_features, dtype=bool)
@@ -226,6 +224,7 @@ class Solver(BaseSolver):
                 self.lmbd,
                 self.n_orient,
                 max_iter=self.max_iter,
+                tol=self.tol,
             )
 
             active_set[active_set] = as_.copy()
