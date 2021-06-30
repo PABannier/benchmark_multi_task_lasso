@@ -197,7 +197,7 @@ class Solver(BaseSolver):
         idx_large_corr = np.argsort(
             groups_norm2(np.dot(self.X.T, self.Y), self.n_orient)
         )
-        new_active_idx = idx_large_corr[-self.active_set_size:]
+        new_active_idx = idx_large_corr[-self.active_set_size :]
         if self.n_orient > 1:
             new_active_idx = (
                 self.n_orient * new_active_idx[:, None]
@@ -234,7 +234,7 @@ class Solver(BaseSolver):
             idx_large_corr = np.argsort(
                 groups_norm2(np.dot(self.X.T, R), self.n_orient)
             )
-            new_active_idx = idx_large_corr[-self.active_set_size:]
+            new_active_idx = idx_large_corr[-self.active_set_size :]
 
             if self.n_orient > 1:
                 new_active_idx = (
