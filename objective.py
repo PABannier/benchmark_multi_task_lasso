@@ -2,10 +2,9 @@ from benchopt import BaseObjective
 from benchopt import safe_import_context
 
 with safe_import_context() as import_ctx:
-    import numpy as np
     from numpy.linalg import norm
     from mtl_utils.common import (
-        norm_l2inf, norm_l21, groups_norm2, get_alpha_max)
+        norm_l21, get_alpha_max)
 
 
 class Objective(BaseObjective):

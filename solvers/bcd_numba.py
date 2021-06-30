@@ -31,7 +31,7 @@ def _bcd(W, X, R, lipschitz, n_orient, active_set, alpha):
         # if X_j[0, 0] != 0:
         if True:
             R += X_j @ W_j
-        if np.all(active_set[idx] == True):
+        if np.all(active_set[idx]):
             R -= X_j @ W[idx]
 
 
@@ -187,7 +187,7 @@ class Solver(BaseSolver):
             iter_idx += 1
 
         # XR = self.G.T @ (self.M - self.G @ self.X)
-        # assert norm_l2inf(XR, self.n_orient) <= self.lmbd + 1e-12, "KKT check"
+        # assert norm_l2inf(XR, self.n_orient) <= self.lmbd + 1e-12, "KKT"
 
     def build_full_coefficient_matrix(self, active_set, n_times, coef):
         """Building full coefficient matrix and filling active set with

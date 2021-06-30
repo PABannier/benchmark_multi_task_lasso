@@ -1,6 +1,5 @@
 from benchopt import BaseSolver
 from benchopt import safe_import_context
-from numpy.core.numeric import isfortran
 
 
 with safe_import_context() as import_ctx:
