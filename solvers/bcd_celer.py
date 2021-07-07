@@ -55,7 +55,16 @@ def set_prios_mtl(X, W, theta, norms_X_col, prios, screened, radius,
 
 @njit
 def dnorm_l21(theta, X, skip):
-    raise NotImplementedError
+    dnorm = 0
+    n_features = X.shape[1]
+    n_tasks = theta.shape[1]
+    XT_theta = np.zeros((n_features, n_tasks))
+    for j in range(n_features):
+        if not skip[j]:
+            Xj_theta = X[:, j] @ theta
+            dnorm = max(dnorm, norm(Xj_theta, ord=2))
+            XT_theta[j] = Xj_theta
+    return dnorm, XT_theta
 
 
 @njit
@@ -241,9 +250,9 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
         # TODO: ask why not n_obs????
         radius = np.sqrt(2 * gap / n_samples) / alpha
 
-        # TODO: check computation Xj_theta
+        # TODO: check computation !!! WRONG, MUST BE CHANGED
         n_screened = set_prios_mtl(X, W, theta, norms_X_col, prios, screened,
-                                   radius, n_screened, Xj_theta)
+                                   radius, n_screened, XT_theta)
 
         ws_size = create_ws_mtl(prune, W, prios, p0, t, screened, C,
                                 n_screened, ws_size)
@@ -330,6 +339,7 @@ class Solver(BaseSolver):
         W = celer_dual_mtl(self.X, self.Y, self.lmbd / np.prod(self.Y.shape),
                            n_iter + 1, max_epochs=100_000, prune=True,
                            verbose=2)
+        self.W = W
 
     def get_result(self):
         return self.W
