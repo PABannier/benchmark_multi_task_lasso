@@ -1,4 +1,18 @@
 import numpy as np
+import functools
+
+
+@functools.lru_cache(None)
+def _get_dgemm():
+    return _get_blas_funcs(np.float64, "gemm")
+
+
+@functools.lru_cache(None)
+def _get_blas_funcs(dtype, names):
+    from scipy import linalg
+
+    return linalg.get_blas_funcs(names, (np.empty(0, dtype),))
+
 
 
 def groups_norm2(A, n_orient):

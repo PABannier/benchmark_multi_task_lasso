@@ -3,23 +3,10 @@ from benchopt import safe_import_context
 
 
 with safe_import_context() as import_ctx:
-    import functools
     import numpy as np
     from numpy.linalg import norm
     from mtl_utils.common import (groups_norm2, get_lipschitz,
-                                  sum_squared, get_duality_gap)
-
-
-@functools.lru_cache(None)
-def _get_dgemm():
-    return _get_blas_funcs(np.float64, "gemm")
-
-
-@functools.lru_cache(None)
-def _get_blas_funcs(dtype, names):
-    from scipy import linalg
-
-    return linalg.get_blas_funcs(names, (np.empty(0, dtype),))
+                                  sum_squared, get_duality_gap, _get_dgemm)
 
 
 def bcd_(
