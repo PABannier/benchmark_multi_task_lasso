@@ -2,7 +2,6 @@ from benchopt import BaseSolver, safe_import_context
 
 with safe_import_context() as import_ctx:
     import numpy as np
-    from scipy import sparse
     from numpy.linalg import norm
     from numba import njit
     from mtl_utils.common import sum_squared, _get_dgemm, norm_l21
@@ -26,7 +25,7 @@ def primal_mtl(W, alpha, R):
 
 def create_dual_pt(alpha, out, R):
     n_samples, n_tasks = R
-    scal = 1 / (alpha * n_samples * n_tasks) #TODO: Check
+    scal = 1 / (alpha * n_samples * n_tasks)  # TODO: Check
     out[:] = R
     out *= scal
 
@@ -231,15 +230,16 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
         gaps[t] = gap
 
         if verbose:
-            print("Iter {:d}: primal {:.10f}, gap {:.2e}".format(t, p_obj, gap),
-                  end="")
+            print("Iter {:d}: primal {:.10f}, gap {:.2e}".format(
+                  t, p_obj, gap), end="")
 
         if gap <= tol:
             if verbose:
                 print("\nEarly exit, gap: {:.2e} < {:.2e}".format(gap, tol))
             break
 
-        radius = np.sqrt(2 * gap / n_samples) / alpha # TODO: ask why not n_obs????
+        # TODO: ask why not n_obs????
+        radius = np.sqrt(2 * gap / n_samples) / alpha
 
         # TODO: check computation Xj_theta
         n_screened = set_prios_mtl(X, W, theta, norms_X_col, prios, screened,
@@ -278,7 +278,7 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
 
                 d_obj_in = dual_mtl(alpha, norm_Y2, theta_in, Y)
 
-                if True: # True, use acceleration
+                if True:  # True, use acceleration
                     create_accel_pt(epoch, gap_freq, alpha, R, thetacc,
                                     last_K_R, U, UtU, verbose_in)
 
@@ -300,8 +300,8 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
             gap_in = p_obj_in - highest_d_obj_in
 
             if verbose_in:
-                    print("Epoch {:d}, primal {:.10f}, gap: {:.2e}".format(
-                          epoch, p_obj_in, gap_in))
+                print("Epoch {:d}, primal {:.10f}, gap: {:.2e}".format(
+                      epoch, p_obj_in, gap_in))
             if gap_in < tol_in:
                 if verbose_in:
                     print("Exit epoch {:d}, gap: {:.2e} < {:.2e}".format(
@@ -313,3 +313,23 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
             print("!!! Inner solver did not converge at epoch "
                   "{:d}, gap: {:.2e} > {:.2e}".format(epoch, gap_in, tol_in))
     return W
+
+
+class Solver(BaseSolver):
+    name = "bcd_celer"
+    stop_strategy = "iteration"
+
+    def set_objective(self, X, Y, lmbd):
+        self.Y, self.lmbd = Y, lmbd
+        self.X = np.asfortranarray(X)
+
+        # Make sure we cache the Numba compilation
+        self.run(1)
+
+    def run(self, n_iter):
+        W = celer_dual_mtl(self.X, self.Y, self.lmbd / np.prod(self.Y.shape),
+                           n_iter + 1, max_epochs=100_000, prune=True,
+                           verbose=2)
+
+    def get_result(self):
+        return self.W

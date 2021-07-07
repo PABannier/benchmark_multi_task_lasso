@@ -14,7 +14,6 @@ def _get_blas_funcs(dtype, names):
     return linalg.get_blas_funcs(names, (np.empty(0, dtype),))
 
 
-
 def groups_norm2(A, n_orient):
     """Compute squared L2 norms of groups inplace."""
     n_positions = A.shape[0] // n_orient
