@@ -24,7 +24,7 @@ def primal_mtl(W, alpha, R):
 
 
 def create_dual_pt(alpha, out, R):
-    n_samples, n_tasks = R
+    n_samples, n_tasks = R.shape
     scal = 1 / (alpha * n_samples * n_tasks)  # TODO: Check
     out[:] = R
     out *= scal
@@ -325,7 +325,7 @@ class Solver(BaseSolver):
     name = "bcd_celer"
     stop_strategy = "iteration"
 
-    def set_objective(self, X, Y, lmbd):
+    def set_objective(self, X, Y, lmbd, n_orient=1):
         self.Y, self.lmbd = Y, lmbd
         self.X = np.asfortranarray(X)
 
