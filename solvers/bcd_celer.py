@@ -136,7 +136,7 @@ def create_accel_pt(epoch, gap_freq, alpha, R, out, last_K_R, U, UtU,
             # out now holds the extrapolated dual point
 
 
-def bcd_epoch(C, norms_X_block, X, R, alpha, W, inv_lc):
+def bcd_epoch(Y, C, norms_X_block, X, R, alpha, W, inv_lc):
     n_samples, n_tasks = R.shape
     W_j_new = np.zeros((1, n_tasks))
     dgemm = _get_dgemm()
@@ -173,6 +173,8 @@ def bcd_epoch(C, norms_X_block, X, R, alpha, W, inv_lc):
             #       overwrite_c=True)
             # W_j[:] = W_j_new
         R += np.outer(X[:, j], W_j_old - W[j])
+        # R[:] = Y - X @ W
+        # np.testing.assert_allclose(Y - X @ W, R)
 
 
 def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
@@ -287,10 +289,7 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
             if epoch > 0 and epoch % gap_freq == 0:
                 Theta_in[:] = R / (alpha * n_samples)
 
-                scal = dual_scaling_mtl(
-                    Theta_in, X, C, screened)[0]
-                # print("scal : in", scal)
-                # print("test:    ", np.max(norm(X.T @ Theta, ord=2, axis=1)))
+                scal = dual_scaling_mtl(Theta_in, X, C, screened)[0]
                 if scal > 1.:
                     Theta_in /= scal
 
@@ -326,8 +325,9 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
                             epoch, gap_in, tol_in))
                     break
 
-            np.testing.assert_allclose(Y - X @ W, R)
-            bcd_epoch(C, norms_X_block, X, R, alpha, W, inv_lc)
+            # R[:] = Y - X @ W
+            # np.testing.assert_allclose(Y - X @ W, R)
+            bcd_epoch(Y, C, norms_X_block, X, R, alpha, W, inv_lc)
         else:
             print("!!! Inner solver did not converge at epoch "
                   "{:d}, gap: {:.2e} > {:.2e}".format(epoch, gap_in, tol_in))
