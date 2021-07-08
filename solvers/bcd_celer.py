@@ -165,10 +165,11 @@ def create_accel_pt(epoch, gap_freq, alpha, R, out, last_K_R, U, UtU,
 def bcd_epoch(C, norms_X_block, X, R, alpha, W, inv_lc):
     # After experimenting, no need to jit this function, use low-level
     # blas function calls for faster computations
+    n_samples = X.shape[0]
     n_tasks = W.shape[1]
     W_j_new = np.zeros((1, n_tasks), order="C")
     dgemm = _get_dgemm()
-    alpha_lc = alpha * inv_lc
+    alpha_lc = n_samples * alpha * inv_lc
 
     for j in C:
         if norms_X_block[j] == 0.:
