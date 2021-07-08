@@ -145,30 +145,34 @@ def bcd_epoch(C, norms_X_block, X, R, alpha, W, inv_lc):
     for j in C:
         if norms_X_block[j] == 0.:
             continue
-        idx = slice(j, j+1)
-        W_j = W[idx, :]
-        X_j = X[:, idx]
+        # idx = slice(j, j+1)
+
+        # W_j = W[idx,:]
+        W_j_old = W[j].copy()
+        X_j = X[:, j]
         # W_j_new = X_j.T @ R * inv_lc[j]
-        dgemm(alpha=inv_lc[j], beta=0.0, a=R.T, b=X_j, c=W_j_new.T,
-              overwrite_c=True)
+        # dgemm(alpha=inv_lc[j], beta=0.0, a=R.T, b=X_j, c=W_j_new.T,
+        #       overwrite_c=True)
+        W[j] += X_j.T @ R * inv_lc[j]
 
-        if W_j[0, 0] != 0:
-            # R += np.dot(X_j, W_j)
-            dgemm(alpha=1.0, beta=1.0, a=W_j.T, b=X_j.T, c=R.T,
-                  overwrite_c=True)
-            W_j_new += W_j
+        # if W_j[0, 0] != 0:
+        #     # R += np.dot(X_j, W_j)
+        #     dgemm(alpha=1.0, beta=1.0, a=W_j.T, b=X_j.T, c=R.T,
+        #           overwrite_c=True)
+        #     W_j_new += W_j
 
-        block_norm = np.sqrt(sum_squared(W_j_new))
-
+        # block_norm = np.sqrt(sum_squared(W_j_new))
+        block_norm = norm(W[j])
         if block_norm <= alpha_lc[j]:
-            W_j.fill(0.0)
+            W[j].fill(0.0)
         else:
-            shrink = max(1.0 - alpha_lc[j] / block_norm, 0.0)
-            W_j_new *= shrink
+            shrink = 1.0 - alpha_lc[j] / block_norm
+            W[j] *= shrink
             # R -= np.dot(X_j, W_j_new)
-            dgemm(alpha=-1.0, beta=1.0, a=W_j_new.T, b=X_j.T, c=R.T,
-                  overwrite_c=True)
-            W_j[:] = W_j_new
+            # dgemm(alpha=-1.0, beta=1.0, a=W_j_new.T, b=X_j.T, c=R.T,
+            #       overwrite_c=True)
+            # W_j[:] = W_j_new
+        R += np.outer(X[:, j], W_j_old - W[j])
 
 
 def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
@@ -292,21 +296,21 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
 
                 d_obj_in = dual_mtl(alpha, norm_Y2, Theta_in, Y)
 
-                if False:
-                    create_accel_pt(epoch, gap_freq, alpha, R, Thetacc,
-                                    last_K_R, U, UtU, verbose_in)
+                # if False:
+                #     create_accel_pt(epoch, gap_freq, alpha, R, Thetacc,
+                #                     last_K_R, U, UtU, verbose_in)
 
-                    if epoch // gap_freq >= K:
-                        scal = dual_scaling_mtl(
-                            Thetacc, X, C, screened)[0]
+                #     if epoch // gap_freq >= K:
+                #         scal = dual_scaling_mtl(
+                #             Thetacc, X, C, screened)[0]
 
-                        if scal > 1.:
-                            Thetacc /= scal
+                #         if scal > 1.:
+                #             Thetacc /= scal
 
-                        d_obj_accel = dual_mtl(alpha, norm_Y2, Thetacc, Y)
-                        if d_obj_accel > d_obj_in:
-                            d_obj_in = d_obj_accel
-                            Theta_in[:] = Thetacc
+                #         d_obj_accel = dual_mtl(alpha, norm_Y2, Thetacc, Y)
+                #         if d_obj_accel > d_obj_in:
+                #             d_obj_in = d_obj_accel
+                #             Theta_in[:] = Thetacc
 
                 highest_d_obj_in = max(highest_d_obj_in, d_obj_in)
 
@@ -322,6 +326,7 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
                             epoch, gap_in, tol_in))
                     break
 
+            np.testing.assert_allclose(Y - X @ W, R)
             bcd_epoch(C, norms_X_block, X, R, alpha, W, inv_lc)
         else:
             print("!!! Inner solver did not converge at epoch "
