@@ -42,13 +42,13 @@ def set_prios_mtl(X, W, norms_X_block, prios, screened, radius,
             continue
         nrm = norm_XT_theta[j]
         prios[j] = (1. - nrm) / norms_X_block[j]
-        if prios[j] > radius:
-            for k in range(n_tasks):
-                if W[j, k] != 0:
-                    break
-            else:
-                screened[j] = True
-                n_screened += 1
+        # if prios[j] > radius:
+        #     for k in range(n_tasks):
+        #         if W[j, k] != 0:
+        #             break
+        #     else:
+        #         screened[j] = True
+        #         n_screened += 1
     return n_screened
 
 
@@ -214,25 +214,28 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
     for t in range(n_iter):
         Theta[:] = R / (alpha * n_samples)
 
-        scal, norm_XT_theta = dual_scaling_mtl(
-            Theta, X, all_features, screened)
+        norm_XT_Theta = norm(X.T @ Theta, axis=1)
+        scal = max(norm_XT_Theta)
+        # scal, norm_XT_Theta = dual_scaling_mtl(
+        # Theta, X, all_features, screened)
+        print("scal:", scal)
+
         if scal > 1.:
-            print(scal)
             Theta /= scal
-            norm_XT_theta /= scal
+            norm_XT_Theta /= scal
         d_obj = dual_mtl(alpha, norm_Y2, Theta, Y)
 
-        if t > 0:
-            scal, norm_XT_theta_in = dual_scaling_mtl(
-                Theta_in, X, all_features, screened)
-            if scal > 1.:
-                Theta_in /= scal
-                norm_XT_theta_in /= scal
-            # d_obj_from_inner = dual_mtl(alpha, norm_Y2, Theta_in, Y)
-            # if d_obj_from_inner > d_obj:
-            #     d_obj = d_obj_from_inner
-            #     Theta[:] = Theta_in
-            #     norm_XT_theta[:] = norm_XT_theta_in
+        # if t > 0:
+        #     scal, norm_XT_theta_in = dual_scaling_mtl(
+        #         Theta_in, X, all_features, screened)
+        #     if scal > 1.:
+        #         Theta_in /= scal
+        #         norm_XT_theta_in /= scal
+        # d_obj_from_inner = dual_mtl(alpha, norm_Y2, Theta_in, Y)
+        # if d_obj_from_inner > d_obj:
+        #     d_obj = d_obj_from_inner
+        #     Theta[:] = Theta_in
+        #     norm_XT_theta[:] = norm_XT_theta_in
 
         highest_d_obj = d_obj
 
@@ -253,7 +256,7 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
 
         # TODO: check
         n_screened = set_prios_mtl(X, W, norms_X_block, prios, screened, radius,
-                                   n_screened, norm_XT_theta)
+                                   n_screened, norm_XT_Theta)
         ws_size = create_ws_mtl(prune, W, prios, p0, t, screened, C,
                                 n_screened, ws_size)
         # if ws_size == n_features then argpartition will break
@@ -282,7 +285,8 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
 
                 scal = dual_scaling_mtl(
                     Theta_in, X, C, screened)[0]
-                print("scal : in", scal)
+                # print("scal : in", scal)
+                # print("test:    ", np.max(norm(X.T @ Theta, ord=2, axis=1)))
                 if scal > 1.:
                     Theta_in /= scal
 

@@ -13,5 +13,6 @@ alpha_max = np.max(norm(X.T @ Y, ord=2, axis=1)) / len(Y)
 alpha = alpha_max / 1.1
 W, Theta = celer_dual_mtl(X, Y, alpha, 10, verbose=2)
 
-
+R = Y - X @ W
 print(np.max(norm(X.T @ Theta, ord=2, axis=1)))
+print(np.max(norm(X.T @ R / len(Y) / alpha, ord=2, axis=1)))
