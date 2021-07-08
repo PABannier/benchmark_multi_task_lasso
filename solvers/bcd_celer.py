@@ -72,27 +72,20 @@ def set_prios_mtl(X, W, norms_X_block, prios, screened, radius,
 
 
 @njit
-def dual_scaling_mtl(Theta, X, ws_size, C, skip):
+def dual_scaling_mtl(Theta, X, C, skip):
     n_features = X.shape[1]
     norm_XT_theta = np.zeros(n_features)
     nrm = 0
 
-    if ws_size == n_features:
-        for j in range(n_features):
-            if skip[j]:
-                continue
-            Xj_theta_nrm = norm(np.dot(X[:, j], Theta), ord=2)
-            norm_XT_theta[j] = Xj_theta_nrm
-            if Xj_theta_nrm > nrm:
-                nrm = Xj_theta_nrm
-    else:
-        for ind in range(ws_size):
-            j = C[ind]
-            Xj_theta_nrm = norm(np.dot(X[:, j], Theta), ord=2)
-            norm_XT_theta[j] = Xj_theta_nrm
-            if Xj_theta_nrm > nrm:
-                nrm = Xj_theta_nrm
+    for j in C:
+        if skip[j]:
+            continue
+        Xj_theta_nrm = norm(X[:, j] @ Theta, ord=2)
+        norm_XT_theta[j] = Xj_theta_nrm
+        if Xj_theta_nrm > nrm:
+            nrm = Xj_theta_nrm
     return nrm, norm_XT_theta
+
 
 @njit
 def create_ws_mtl(prune, W, prios, p0, t, screened, C, n_screened, ws_size):
@@ -163,11 +156,8 @@ def create_accel_pt(epoch, gap_freq, alpha, R, out, last_K_R, U, UtU,
 
 
 def bcd_epoch(C, norms_X_block, X, R, alpha, W, inv_lc):
-    # After experimenting, no need to jit this function, use low-level
-    # blas function calls for faster computations
-    n_samples = X.shape[0]
-    n_tasks = W.shape[1]
-    W_j_new = np.zeros((1, n_tasks), order="C")
+    n_samples, n_tasks = R.shape
+    W_j_new = np.zeros((1, n_tasks))
     dgemm = _get_dgemm()
     alpha_lc = n_samples * alpha * inv_lc
 
@@ -194,9 +184,9 @@ def bcd_epoch(C, norms_X_block, X, R, alpha, W, inv_lc):
         else:
             shrink = max(1.0 - alpha_lc[j] / block_norm, 0.0)
             W_j_new *= shrink
-            #R -= np.dot(X_j, W_j_new)
+            # R -= np.dot(X_j, W_j_new)
             dgemm(alpha=-1.0, beta=1.0, a=W_j_new.T, b=X_j.T, c=R.T,
-                 overwrite_c=True)
+                  overwrite_c=True)
             W_j[:] = W_j_new
 
 
@@ -245,16 +235,16 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
         create_dual_pt(alpha, Theta, R)
 
         # ref: https://github.com/mathurinm/celer/blob/master/celer/multitask_fast.pyx#L196
-        scal, norm_XT_theta = dual_scaling_mtl(Theta, X, n_features, dummy_C,
-                                               screened)
+        scal, norm_XT_theta = dual_scaling_mtl(
+            Theta, X, all_features, screened)
         if scal > 1.:
             Theta /= scal
             norm_XT_theta /= scal
         d_obj = dual_mtl(alpha, norm_Y2, Theta, Y)
 
         if t > 0:
-            scal, norm_XT_theta_in = dual_scaling_mtl(Theta_in, X, n_features,
-                                                      dummy_C, screened)
+            scal, norm_XT_theta_in = dual_scaling_mtl(
+                Theta_in, X, all_features, screened)
             if scal > 1.:
                 Theta_in /= scal
                 norm_XT_theta_in /= scal
@@ -310,8 +300,9 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
             if epoch > 0 and epoch % gap_freq == 0:
                 create_dual_pt(alpha, Theta_in, R)
 
-                #scal = dnorm_l21(Theta_in, X, notin_WS)[0]
-                scal = dual_scaling_mtl(Theta_in, X, ws_size, C, notin_WS)[0]
+                # scal = dnorm_l21(Theta_in, X, notin_WS)[0]
+                scal = dual_scaling_mtl(
+                    Theta_in, X, C, screened)[0]
 
                 if scal > 1.:
                     Theta_in /= scal
@@ -323,8 +314,8 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
                                     last_K_R, U, UtU, verbose_in)
 
                     if epoch // gap_freq >= K:
-                        scal = dual_scaling_mtl(Thetacc, X, ws_size, C,
-                                                notin_WS)[0]
+                        scal = dual_scaling_mtl(
+                            Thetacc, X, C, screened)[0]
 
                         if scal > 1.:
                             Thetacc /= scal
@@ -345,7 +336,7 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
                 if gap_in < tol_in:
                     if verbose_in:
                         print("Exit epoch {:d}, gap: {:.2e} < {:.2e}".format(
-                                epoch, gap_in, tol_in))
+                            epoch, gap_in, tol_in))
                     break
 
             bcd_epoch(C, norms_X_block, X, R, alpha, W, inv_lc)
