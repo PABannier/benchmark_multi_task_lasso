@@ -348,7 +348,7 @@ class Solver(BaseSolver):
     def run(self, n_iter):
         W = celer_dual_mtl(self.X, self.Y, self.lmbd / np.prod(self.Y.shape),
                            n_iter + 1, max_epochs=100_000, prune=True,
-                           verbose=2)
+                           verbose=2)[0]
         self.W = W
 
     def get_result(self):
