@@ -8,15 +8,23 @@ with safe_import_context() as import_ctx:
 
 
 def dual_mtl(alpha, norm_Y2, Theta, Y):
+    """
+    Problem solved:
+    \min \frac{n\lambda**2}{2} \norm{\frac{Y}{n\lambda} - \Theta} ** 2
+    + \frac{1}{2n} \norm{Y} ** 2
+    """
     n_samples = Y.shape[0]
-    Y = Y / (n_samples * alpha)
-    d_obj = - ((Y - Theta) ** 2).sum()
+    d_obj = - ((Y / (n_samples * alpha) - Theta) ** 2).sum()
     d_obj *= 0.5 * alpha ** 2 * n_samples
     d_obj += norm_Y2 / (2. * n_samples)
     return d_obj
 
 
 def primal_mtl(W, alpha, R):
+    """
+    Problem solved:
+    \min \frac{1}{2n} \norm{Y - XB} ** 2 + \lambda \norm{B}_{2, 1}
+    """
     n_samples = R.shape[0]
     p_obj = sum_squared(R) / (2 * n_samples)
     p_obj += norm_l21(W, 1, copy=False) * alpha
@@ -135,34 +143,36 @@ def bcd_epoch(C, norms_X_block, X, R, alpha, W, inv_lc):
     # After experimenting, no need to jit this function, use low-level
     # blas function calls for faster computations
     n_tasks = W.shape[1]
-    W_j_new = np.zeros_like(n_tasks)
+    W_j_new = np.zeros((1, n_tasks), order="C")
     dgemm = _get_dgemm()
+    alpha_lc = alpha * inv_lc
 
     for j in C:
         if norms_X_block[j] == 0.:
             continue
-        W_j = W[j]
-        X_j = X[:, j]
-
+        idx = slice(j, j+1)
+        W_j = W[idx, :]
+        X_j = X[:, idx]
+        # W_j_new = X_j.T @ R * inv_lc[j]
         dgemm(alpha=inv_lc[j], beta=0.0, a=R.T, b=X_j, c=W_j_new.T,
               overwrite_c=True)
 
         if W_j[0, 0] != 0:
+            # R += np.dot(X_j, W_j)
             dgemm(alpha=1.0, beta=1.0, a=W_j.T, b=X_j.T, c=R.T,
                   overwrite_c=True)
-            W_j_new += X_j
+            W_j_new += W_j
 
         block_norm = np.sqrt(sum_squared(W_j_new))
-        alpha_lc = alpha * inv_lc
 
-        if block_norm <= alpha_lc:
+        if block_norm <= alpha_lc[j]:
             W_j.fill(0.0)
         else:
-            shrink = max(1.0 - alpha_lc / block_norm, 0.0)
+            shrink = max(1.0 - alpha_lc[j] / block_norm, 0.0)
             W_j_new *= shrink
-
+            #R -= np.dot(X_j, W_j_new)
             dgemm(alpha=-1.0, beta=1.0, a=W_j_new.T, b=X_j.T, c=R.T,
-                  overwrite_c=True)
+                 overwrite_c=True)
             W_j[:] = W_j_new
 
 
