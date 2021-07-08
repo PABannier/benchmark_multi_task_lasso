@@ -24,8 +24,8 @@ def primal_mtl(W, alpha, R):
 
 
 def create_dual_pt(alpha, out, R):
-    n_samples, n_tasks = R.shape
-    scal = 1 / (alpha * n_samples * n_tasks)  # TODO: Check
+    n_samples = R.shape[0]
+    scal = 1 / (alpha * n_samples)
     out[:] = R * scal
 
 
