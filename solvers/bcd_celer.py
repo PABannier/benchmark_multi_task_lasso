@@ -58,18 +58,41 @@ def set_prios_mtl(X, W, norms_X_block, prios, screened, radius,
     return n_screened
 
 
+# @njit
+# def dnorm_l21(Theta, X, skip):
+#     dnorm = 0
+#     n_features = X.shape[1]
+#     norm_XT_theta = np.zeros(n_features)
+#     for j in range(n_features):
+#         if not skip[j]:
+#             Xj_theta_nrm = norm(X[:, j] @ Theta, ord=2)
+#             dnorm = max(dnorm, Xj_theta_nrm)
+#             norm_XT_theta[j] = Xj_theta_nrm
+#     return dnorm, norm_XT_theta
+
+
 @njit
-def dnorm_l21(Theta, X, skip):
-    dnorm = 0
+def dual_scaling_mtl(Theta, X, ws_size, C, skip):
     n_features = X.shape[1]
     norm_XT_theta = np.zeros(n_features)
-    for j in range(n_features):
-        if not skip[j]:
-            Xj_theta_nrm = norm(X[:, j] @ Theta, ord=2)
-            dnorm = max(dnorm, Xj_theta_nrm)
-            norm_XT_theta[j] = Xj_theta_nrm
-    return dnorm, norm_XT_theta
+    nrm = 0
 
+    if ws_size == n_features:
+        for j in range(n_features):
+            if skip[j]:
+                continue
+            Xj_theta_nrm = norm(np.dot(X[:, j], Theta), ord=2)
+            norm_XT_theta[j] = Xj_theta_nrm
+            if Xj_theta_nrm > nrm:
+                nrm = Xj_theta_nrm
+    else:
+        for ind in range(ws_size):
+            j = C[ind]
+            Xj_theta_nrm = norm(np.dot(X[:, j], Theta), ord=2)
+            norm_XT_theta[j] = Xj_theta_nrm
+            if Xj_theta_nrm > nrm:
+                nrm = Xj_theta_nrm
+    return nrm, norm_XT_theta
 
 @njit
 def create_ws_mtl(prune, W, prios, p0, t, screened, C, n_screened, ws_size):
@@ -210,33 +233,35 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
     Theta = np.zeros((n_samples, n_tasks), dtype=X.dtype)
     Theta_in = np.zeros((n_samples, n_tasks), dtype=X.dtype)
     Thetacc = np.zeros((n_samples, n_tasks), dtype=X.dtype)
-    d_obj_from_inner = 0.
 
+    d_obj_from_inner = 0.
     all_features = np.arange(n_features, dtype=np.int32)
     C = all_features.copy()
+    dummy_C = np.zeros(1, dtype=np.int32)
     ws_size = p0
 
     for t in range(n_iter):
         create_dual_pt(alpha, Theta, R)
 
-        scal, norm_XT_theta = dnorm_l21(Theta, X, screened)
-
+        # ref: https://github.com/mathurinm/celer/blob/master/celer/multitask_fast.pyx#L196
+        scal, norm_XT_theta = dual_scaling_mtl(Theta, X, n_features, dummy_C,
+                                               screened)
         if scal > 1.:
             Theta /= scal
             norm_XT_theta /= scal
         d_obj = dual_mtl(alpha, norm_Y2, Theta, Y)
 
-        scal, norm_XT_theta_in = dnorm_l21(Theta_in, X, screened)
-
-        if scal > 1.:
-            Theta_in /= scal
-            norm_XT_theta_in /= scal
-        d_obj_from_inner = dual_mtl(alpha, norm_Y2, Theta_in, Y)
-
-        if d_obj_from_inner > d_obj:
-            d_obj = d_obj_from_inner
-            Theta[:] = Theta_in
-            norm_XT_theta[:] = norm_XT_theta_in
+        if t > 0:
+            scal, norm_XT_theta_in = dual_scaling_mtl(Theta_in, X, n_features,
+                                                      dummy_C, screened)
+            if scal > 1.:
+                Theta_in /= scal
+                norm_XT_theta_in /= scal
+            d_obj_from_inner = dual_mtl(alpha, norm_Y2, Theta_in, Y)
+            if d_obj_from_inner > d_obj:
+                d_obj = d_obj_from_inner
+                Theta[:] = Theta_in
+                norm_XT_theta[:] = norm_XT_theta_in
 
         highest_d_obj = d_obj
 
@@ -253,13 +278,11 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
                 print("\nEarly exit, gap: {:.2e} < {:.2e}".format(gap, tol))
             break
 
-        # TODO: ask why not n_obs????
         radius = np.sqrt(2 * gap / n_samples) / alpha
 
         # TODO: check
         n_screened = set_prios_mtl(X, W, norms_X_block, prios, screened, radius,
                                    n_screened, norm_XT_theta)
-
         ws_size = create_ws_mtl(prune, W, prios, p0, t, screened, C,
                                 n_screened, ws_size)
         # if ws_size == n_features then argpartition will break
@@ -283,10 +306,11 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
 
         highest_d_obj_in = 0
         for epoch in range(max_epochs):
-            if epoch != 0 and epoch % gap_freq == 0:
+            if epoch > 0 and epoch % gap_freq == 0:
                 create_dual_pt(alpha, Theta_in, R)
 
-                scal = dnorm_l21(Theta_in, X, notin_WS)[0]
+                #scal = dnorm_l21(Theta_in, X, notin_WS)[0]
+                scal = dual_scaling_mtl(Theta_in, X, ws_size, C, notin_WS)[0]
 
                 if scal > 1.:
                     Theta_in /= scal
@@ -298,30 +322,30 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
                                     last_K_R, U, UtU, verbose_in)
 
                     if epoch // gap_freq >= K:
-                        scal = dnorm_l21(Thetacc, X, notin_WS)[0]
+                        scal = dual_scaling_mtl(Thetacc, X, ws_size, C,
+                                                notin_WS)[0]
 
-                    if scal > 1.:
-                        Thetacc /= scal
+                        if scal > 1.:
+                            Thetacc /= scal
 
-                    d_obj_accel = dual_mtl(alpha, norm_Y2, Thetacc, Y)
-                    if d_obj_accel > d_obj_in:
-                        d_obj_in = d_obj_accel
-                        Theta_in[:] = Thetacc
+                        d_obj_accel = dual_mtl(alpha, norm_Y2, Thetacc, Y)
+                        if d_obj_accel > d_obj_in:
+                            d_obj_in = d_obj_accel
+                            Theta_in[:] = Thetacc
 
-                if d_obj_in > highest_d_obj_in:
-                    highest_d_obj_in = d_obj_in
+                highest_d_obj_in = max(highest_d_obj_in, d_obj_in)
 
-            p_obj_in = primal_mtl(W, alpha, R)
-            gap_in = p_obj_in - highest_d_obj_in
+                p_obj_in = primal_mtl(W, alpha, R)
+                gap_in = p_obj_in - highest_d_obj_in
 
-            if verbose_in:
-                print("Epoch {:d}, primal {:.10f}, gap: {:.2e}".format(
-                      epoch, p_obj_in, gap_in))
-            if gap_in < tol_in:
                 if verbose_in:
-                    print("Exit epoch {:d}, gap: {:.2e} < {:.2e}".format(
-                            epoch, gap_in, tol_in))
-                break
+                    print("Epoch {:d}, primal {:.10f}, gap: {:.2e}".format(
+                        epoch, p_obj_in, gap_in))
+                if gap_in < tol_in:
+                    if verbose_in:
+                        print("Exit epoch {:d}, gap: {:.2e} < {:.2e}".format(
+                                epoch, gap_in, tol_in))
+                    break
 
             bcd_epoch(C, norms_X_block, X, R, alpha, W, inv_lc)
         else:
