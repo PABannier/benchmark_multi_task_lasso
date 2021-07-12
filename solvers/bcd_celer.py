@@ -133,7 +133,7 @@ def create_accel_pt(epoch, gap_freq, alpha, R, out, last_K_R, U, UtU,
 
 
 def bcd_epoch(Y, C, norms_X_block, X, R, alpha, W, inv_lc):
-    _, n_tasks = R.shape
+    n_tasks = R.shape[1]
     W_j_new = np.zeros((1, n_tasks))
     dgemm = _get_dgemm()
     alpha_lc = alpha * inv_lc
@@ -141,34 +141,36 @@ def bcd_epoch(Y, C, norms_X_block, X, R, alpha, W, inv_lc):
     for j in C:
         if norms_X_block[j] == 0.:
             continue
-        # idx = slice(j, j+1)
+        idx = slice(j, j+1)
+        W_j = W[idx,:]
+        X_j = X[:, idx]
 
-        # W_j = W[idx,:]
-        W_j_old = W[j].copy()
-        X_j = X[:, j]
+        #W_j_old = W[j].copy()
+        
         # W_j_new = X_j.T @ R * inv_lc[j]
-        # dgemm(alpha=inv_lc[j], beta=0.0, a=R.T, b=X_j, c=W_j_new.T,
-        #       overwrite_c=True)
-        W[j] += X_j.T @ R * inv_lc[j]
+        dgemm(alpha=inv_lc[j], beta=0.0, a=R.T, b=X_j, c=W_j_new.T,
+              overwrite_c=True)
 
-        # if W_j[0, 0] != 0:
-        #     # R += np.dot(X_j, W_j)
-        #     dgemm(alpha=1.0, beta=1.0, a=W_j.T, b=X_j.T, c=R.T,
-        #           overwrite_c=True)
-        #     W_j_new += W_j
+        if W_j[0, 0] != 0:
+            # R += np.dot(X_j, W_j)
+            dgemm(alpha=1.0, beta=1.0, a=W_j.T, b=X_j.T, c=R.T,
+                  overwrite_c=True)
+            W_j_new += W_j
 
         # block_norm = np.sqrt(sum_squared(W_j_new))
-        block_norm = norm(W[j])
+        block_norm = norm(W_j_new)
+        
         if block_norm <= alpha_lc[j]:
-            W[j].fill(0.0)
+            W_j.fill(0.0)
         else:
             shrink = 1.0 - alpha_lc[j] / block_norm
-            W[j] *= shrink
+            W_j_new *= shrink
             # R -= np.dot(X_j, W_j_new)
-            # dgemm(alpha=-1.0, beta=1.0, a=W_j_new.T, b=X_j.T, c=R.T,
-            #       overwrite_c=True)
-            # W_j[:] = W_j_new
-        R += np.outer(X[:, j], W_j_old - W[j])
+            dgemm(alpha=-1.0, beta=1.0, a=W_j_new.T, b=X_j.T, c=R.T,
+                  overwrite_c=True)
+            W_j[:] = W_j_new
+
+        #R += np.outer(X[:, j], W_j_old - W[j])
         # R[:] = Y - X @ W
         # np.testing.assert_allclose(Y - X @ W, R)
 
