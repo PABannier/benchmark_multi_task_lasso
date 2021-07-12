@@ -8,25 +8,23 @@ with safe_import_context() as import_ctx:
 
 
 def dual_mtl(alpha, norm_Y2, Theta, Y):
-    """
+    r"""
     Problem solved:
-    \min \frac{n\lambda**2}{2} \norm{\frac{Y}{n\lambda} - \Theta} ** 2
-    + \frac{1}{2n} \norm{Y} ** 2
+    \min \frac{\lambda**2}{2} \norm{\frac{Y}{\lambda} - \Theta} ** 2
+    + \frac{1}{2} \norm{Y} ** 2
     """
-    n_samples = Y.shape[0]
-    d_obj = - ((Y / (n_samples * alpha) - Theta) ** 2).sum()
-    d_obj *= 0.5 * alpha ** 2 * n_samples
-    d_obj += norm_Y2 / (2. * n_samples)
+    d_obj = - ((Y / alpha - Theta) ** 2).sum()
+    d_obj *= 0.5 * alpha ** 2
+    d_obj += norm_Y2 / 2.
     return d_obj
 
 
-def primal_mtl(W, alpha, R):
-    """
+def primal_mtl(W, alpha, R):    
+    r"""
     Problem solved:
-    \min \frac{1}{2n} \norm{Y - XB} ** 2 + \lambda \norm{B}_{2, 1}
+    \min \frac{1}{2} \norm{Y - XB} ** 2 + \lambda \norm{B}_{2, 1}
     """
-    n_samples = R.shape[0]
-    p_obj = sum_squared(R) / (2 * n_samples)
+    p_obj = sum_squared(R) / 2
     p_obj += norm_l21(W, 1, copy=False) * alpha
     return p_obj
 
@@ -42,13 +40,13 @@ def set_prios_mtl(X, W, norms_X_block, prios, screened, radius,
             continue
         nrm = norm_XT_theta[j]
         prios[j] = (1. - nrm) / norms_X_block[j]
-        # if prios[j] > radius:
-        #     for k in range(n_tasks):
-        #         if W[j, k] != 0:
-        #             break
-        #     else:
-        #         screened[j] = True
-        #         n_screened += 1
+        if prios[j] > radius:
+            for k in range(n_tasks):
+                if W[j, k] != 0:
+                    break
+            else:
+                screened[j] = True
+                n_screened += 1
     return n_screened
 
 
@@ -100,8 +98,6 @@ def create_ws_mtl(prune, W, prios, p0, t, screened, C, n_screened, ws_size):
 def create_accel_pt(epoch, gap_freq, alpha, R, out, last_K_R, U, UtU,
                     verbose):
     K = U.shape[0] + 1
-    n_samples, n_tasks = R.shape
-    tmp = 1. / (n_samples * n_tasks * alpha)
 
     if epoch // gap_freq < K:
         last_K_R[(epoch // gap_freq), :] = R
@@ -132,49 +128,49 @@ def create_accel_pt(epoch, gap_freq, alpha, R, out, last_K_R, U, UtU,
             out[:] = 0
             for k in range(K - 1):
                 out += anderson[k] * last_K_R[k, :]
-            out *= tmp
+            out /= alpha
             # out now holds the extrapolated dual point
 
 
 def bcd_epoch(Y, C, norms_X_block, X, R, alpha, W, inv_lc):
-    n_samples, n_tasks = R.shape
+    _, n_tasks = R.shape
     W_j_new = np.zeros((1, n_tasks))
     dgemm = _get_dgemm()
-    alpha_lc = n_samples * alpha * inv_lc
+    alpha_lc = alpha * inv_lc
 
     for j in C:
-            if norms_X_block[j] == 0.:
-                continue
-            # idx = slice(j, j+1)
+        if norms_X_block[j] == 0.:
+            continue
+        # idx = slice(j, j+1)
 
-            # W_j = W[idx,:]
-            W_j_old = W[j].copy()
-            X_j = X[:, j]
-            # W_j_new = X_j.T @ R * inv_lc[j]
-            # dgemm(alpha=inv_lc[j], beta=0.0, a=R.T, b=X_j, c=W_j_new.T,
+        # W_j = W[idx,:]
+        W_j_old = W[j].copy()
+        X_j = X[:, j]
+        # W_j_new = X_j.T @ R * inv_lc[j]
+        # dgemm(alpha=inv_lc[j], beta=0.0, a=R.T, b=X_j, c=W_j_new.T,
+        #       overwrite_c=True)
+        W[j] += X_j.T @ R * inv_lc[j]
+
+        # if W_j[0, 0] != 0:
+        #     # R += np.dot(X_j, W_j)
+        #     dgemm(alpha=1.0, beta=1.0, a=W_j.T, b=X_j.T, c=R.T,
+        #           overwrite_c=True)
+        #     W_j_new += W_j
+
+        # block_norm = np.sqrt(sum_squared(W_j_new))
+        block_norm = norm(W[j])
+        if block_norm <= alpha_lc[j]:
+            W[j].fill(0.0)
+        else:
+            shrink = 1.0 - alpha_lc[j] / block_norm
+            W[j] *= shrink
+            # R -= np.dot(X_j, W_j_new)
+            # dgemm(alpha=-1.0, beta=1.0, a=W_j_new.T, b=X_j.T, c=R.T,
             #       overwrite_c=True)
-            W[j] += X_j.T @ R * inv_lc[j]
-
-            # if W_j[0, 0] != 0:
-            #     # R += np.dot(X_j, W_j)
-            #     dgemm(alpha=1.0, beta=1.0, a=W_j.T, b=X_j.T, c=R.T,
-            #           overwrite_c=True)
-            #     W_j_new += W_j
-
-            # block_norm = np.sqrt(sum_squared(W_j_new))
-            block_norm = norm(W[j])
-            if block_norm <= alpha_lc[j]:
-                W[j].fill(0.0)
-            else:
-                shrink = 1.0 - alpha_lc[j] / block_norm
-                W[j] *= shrink
-                # R -= np.dot(X_j, W_j_new)
-                # dgemm(alpha=-1.0, beta=1.0, a=W_j_new.T, b=X_j.T, c=R.T,
-                #       overwrite_c=True)
-                # W_j[:] = W_j_new
-            R += np.outer(X[:, j], W_j_old - W[j])
-            # R[:] = Y - X @ W
-            # np.testing.assert_allclose(Y - X @ W, R)
+            # W_j[:] = W_j_new
+        R += np.outer(X[:, j], W_j_old - W[j])
+        # R[:] = Y - X @ W
+        # np.testing.assert_allclose(Y - X @ W, R)
 
 
 def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
@@ -187,9 +183,9 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
     R = Y.copy()
     verbose_in = max(verbose - 1, 0)
     n_screened = 0
-    norm_Y2 = norm(Y) ** 2
+    norm_Y2 = norm(Y, 'fro') ** 2
 
-    tol *= norm_Y2 / n_obs
+    tol *= norm_Y2
     if p0 > n_features:
         p0 = n_features
 
@@ -212,13 +208,13 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
     Theta_in = np.zeros((n_samples, n_tasks), dtype=X.dtype)
     Thetacc = np.zeros((n_samples, n_tasks), dtype=X.dtype)
 
-    d_obj_from_inner = 0.
+    # d_obj_from_inner = 0.
     all_features = np.arange(n_features)
     C = all_features.copy()
     ws_size = p0
 
     for t in range(n_iter):
-        Theta[:] = R / (alpha * n_samples)
+        Theta[:] = R / alpha
 
         norm_XT_Theta = norm(X.T @ Theta, axis=1)
         scal = max(norm_XT_Theta)
@@ -258,7 +254,7 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
                 print("\nEarly exit, gap: {:.2e} < {:.2e}".format(gap, tol))
             break
 
-        radius = np.sqrt(2 * gap / n_samples) / alpha
+        radius = np.sqrt(2 * gap) / alpha
 
         n_screened = set_prios_mtl(X, W, norms_X_block, prios, screened, radius,
                                    n_screened, norm_XT_Theta)
@@ -286,7 +282,7 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
         highest_d_obj_in = 0
         for epoch in range(max_epochs):
             if epoch > 0 and epoch % gap_freq == 0:
-                Theta_in[:] = R / (alpha * n_samples)
+                Theta_in[:] = R / alpha
 
                 scal = dual_scaling_mtl(Theta_in, X, C, screened)[0]
                 if scal > 1.:
@@ -345,8 +341,8 @@ class Solver(BaseSolver):
         self.run(1)
 
     def run(self, n_iter):
-        W = celer_dual_mtl(self.X, self.Y, self.lmbd / np.prod(self.Y.shape),
-                           n_iter + 1, max_epochs=100_000, prune=True,
+        W = celer_dual_mtl(self.X, self.Y, self.lmbd,
+                           n_iter, max_epochs=100_000, prune=True,
                            verbose=0)[0]
         self.W = W
 
