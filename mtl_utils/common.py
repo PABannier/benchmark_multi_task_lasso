@@ -17,7 +17,7 @@ def _get_blas_funcs(dtype, names):
 def groups_norm2(A, n_orient):
     """Compute squared L2 norms of groups inplace."""
     n_positions = A.shape[0] // n_orient
-    return np.sum(np.power(A, 2, A).reshape(n_positions, -1), axis=1)
+    return np.sum(np.power(A, 2).reshape(n_positions, -1), axis=1)
 
 
 def norm_l2inf(A, n_orient=1, copy=True):

@@ -8,7 +8,7 @@ with safe_import_context() as import_ctx:
 
 class Objective(BaseObjective):
     name = "Objective"
-    parameters = {"reg": [.01, .5], "n_orient": [1]}
+    parameters = {"reg": [.5], "n_orient": [1]}
 
     def __init__(self, reg=0.1, n_orient=1):
         self.reg = reg
