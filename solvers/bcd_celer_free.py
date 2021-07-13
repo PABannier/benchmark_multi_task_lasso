@@ -11,7 +11,7 @@ with safe_import_context() as import_ctx:
 def dual_mtl(alpha, norm_Y2, Theta, Y):
     """
     Problem solved:
-    min 0.5 * (lambda ** 2) * ||(Y / lambda) - Theta|| ** 2 + 0.5 * ||Y|| ** 2
+    max - 0.5 * (lambda ** 2) * ||(Y / lambda) - Theta|| ** 2 + 0.5 * ||Y|| ** 2
     """
     d_obj = - ((Y / alpha - Theta) ** 2).sum()
     d_obj *= 0.5 * alpha ** 2
@@ -60,7 +60,7 @@ def dual_scaling_mtl(Theta, Xs_j, C, skip):
     for j in C:
         if skip[j]:
             continue
-        Xj_theta_nrm = norm(np.dot(Xs_j[j], Theta), ord=2)
+        Xj_theta_nrm = norm(np.dot(Xs_j[j], Theta))
         norm_XT_Theta[j] = Xj_theta_nrm
         if Xj_theta_nrm > nrm:
             nrm = Xj_theta_nrm
@@ -68,10 +68,9 @@ def dual_scaling_mtl(Theta, Xs_j, C, skip):
 
 
 # def dual_scaling_mtl(Theta, Xs_j, C, skip):
-#     n_positions = len(Xs_j)
-#     n_orient = Xs_j.shape[1]
+#     n_positions, n_orient, _ = Xs_j.shape
 #     norm_XT_Theta = np.zeros(n_positions)
-#     dgemm = _get_dgemm()
+#     # dgemm = _get_dgemm()
 #     n_tasks = Theta.shape[1]
 #     Xj_theta = np.zeros((n_orient, n_tasks))
 #     nrm = 0
@@ -81,8 +80,7 @@ def dual_scaling_mtl(Theta, Xs_j, C, skip):
 #         # dgemm(alpha=1.0, beta=1.0, a=Theta.T, b=Xs_j[j], c=Xj_theta.T, 
 #         #      overwrite_c=True)
 #         np.dot(Xs_j[j], Theta, out=Xj_theta)
-#         Xj_theta_nrm = norm(Xj_theta, ord=2)
-#         #Xj_theta_nrm = norm(np.dot(X[:, idx].T, Theta), ord=2)
+#         Xj_theta_nrm = norm(Xj_theta, ord='fro')
 #         norm_XT_Theta[j] = Xj_theta_nrm
 #         if Xj_theta_nrm > nrm:
 #             nrm = Xj_theta_nrm
@@ -99,16 +97,14 @@ def create_ws_mtl(prune, W, prios, p0, t, screened, C, n_screened, ws_size,
         ws_size = p0
         for j in range(n_positions):
             idx = slice(j * n_orient, (j + 1) * n_orient)
-            for k in range(n_tasks):
-                if np.all(W[idx, k] != 0):
-                    prios[j] = -1
-                    break
+            if np.any(W[idx, :]):
+                prios[j] = -1
     else:
         nnz = 0
         if prune:
             for j in range(n_positions):
                 idx = slice(j * n_orient, (j + 1) * n_orient)
-                if np.all(W[idx, 0] != 0):
+                if np.any(W[idx, 0]):
                     prios[j] = -1
                     nnz += 1
             ws_size = 2 * nnz
@@ -159,7 +155,7 @@ def create_accel_pt(epoch, gap_freq, alpha, R, out, last_K_R, U, UtU,
             # out now holds the extrapolated dual point
 
 
-def bcd_epoch(Y, C, lipschitz_consts, X, R, alpha, W, n_orient):
+def bcd_epoch(C, lipschitz_consts, X, R, alpha, W, n_orient):
     n_tasks = R.shape[1]
     W_j_new = np.zeros((n_orient, n_tasks))
     dgemm = _get_dgemm()
@@ -236,7 +232,7 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
     Xs_j = np.empty((n_positions, n_orient, n_samples))
     for i in range(n_positions):
         idx = slice(i * n_orient, (i + 1) * n_orient)
-        Xs_j[idx] = X[:, idx].T
+        Xs_j[i] = X[:, idx].T
 
     # d_obj_from_inner = 0.
     all_positions = np.arange(n_positions)
@@ -346,7 +342,7 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
                             epoch, gap_in, tol_in))
                     break
 
-            bcd_epoch(Y, C, lipschitz_consts, X, R, alpha, W, n_orient)
+            bcd_epoch(C, lipschitz_consts, X, R, alpha, W, n_orient)
         else:
             print("!!! Inner solver did not converge at epoch "
                   "{:d}, gap: {:.2e} > {:.2e}".format(epoch, gap_in, tol_in))
