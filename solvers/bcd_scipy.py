@@ -146,7 +146,7 @@ class Solver(BaseSolver):
 
     name = "bcd_blas_low_level"
     stop_strategy = "callback"
-    parameters = {"accelerated": (True, False)}
+    #parameters = {"accelerated": (True, False)}
 
     def set_objective(self, X, Y, lmbd, n_orient):
         self.X, self.Y = X, Y
@@ -194,7 +194,7 @@ class Solver(BaseSolver):
                 coef_init,
                 self.lmbd,
                 self.n_orient,
-                accelerated=self.accelerated,
+                accelerated=True,  # self.accelerated
                 max_iter=self.max_iter,
                 tol=self.tol,
             )

@@ -30,14 +30,14 @@ def primal_mtl(W, alpha, R):
 
 @njit
 def set_prios_mtl(X, W, norms_X_block, prios, screened, radius,
-                  n_screened, norm_XT_theta):
+                  n_screened, norm_XT_Theta):
     n_features = X.shape[1]
     n_tasks = W.shape[1]
     for j in range(n_features):
         if screened[j] or norms_X_block[j] == 0:
             prios[j] = np.inf
             continue
-        nrm = norm_XT_theta[j]
+        nrm = norm_XT_Theta[j]
         prios[j] = (1. - nrm) / norms_X_block[j]
         if prios[j] > radius:
             for k in range(n_tasks):
@@ -52,17 +52,17 @@ def set_prios_mtl(X, W, norms_X_block, prios, screened, radius,
 @njit
 def dual_scaling_mtl(Theta, X, C, skip):
     n_features = X.shape[1]
-    norm_XT_theta = np.zeros(n_features)
+    norm_XT_Theta = np.zeros(n_features)
     nrm = 0
 
     for j in C:
         if skip[j]:
             continue
-        Xj_theta_nrm = norm(X[:, j] @ Theta, ord=2)
-        norm_XT_theta[j] = Xj_theta_nrm
-        if Xj_theta_nrm > nrm:
-            nrm = Xj_theta_nrm
-    return nrm, norm_XT_theta
+        Xj_Theta_nrm = norm(X[:, j] @ Theta, ord=2)
+        norm_XT_Theta[j] = Xj_Theta_nrm
+        if Xj_Theta_nrm > nrm:
+            nrm = Xj_Theta_nrm
+    return nrm, norm_XT_Theta
 
 
 @njit
@@ -131,7 +131,7 @@ def create_accel_pt(epoch, gap_freq, alpha, R, out, last_K_R, U, UtU,
             # out now holds the extrapolated dual point
 
 
-def bcd_epoch(Y, C, norms_X_block, X, R, alpha, W, inv_lc):
+def bcd_epoch(C, norms_X_block, X, R, alpha, W, inv_lc):
     n_tasks = R.shape[1]
     W_j_new = np.zeros((1, n_tasks))
     dgemm = _get_dgemm()
@@ -141,8 +141,10 @@ def bcd_epoch(Y, C, norms_X_block, X, R, alpha, W, inv_lc):
         if norms_X_block[j] == 0.:
             continue
         idx = slice(j, j+1)
-        W_j = W[idx, :]
+        W_j = W[idx,:]
         X_j = X[:, idx]
+
+        #W_j_old = W[j].copy()
 
         # W_j_new = X_j.T @ R * inv_lc[j]
         dgemm(alpha=inv_lc[j], beta=0.0, a=R.T, b=X_j, c=W_j_new.T,
@@ -154,6 +156,7 @@ def bcd_epoch(Y, C, norms_X_block, X, R, alpha, W, inv_lc):
                   overwrite_c=True)
             W_j_new += W_j
 
+        # block_norm = np.sqrt(sum_squared(W_j_new))
         block_norm = norm(W_j_new)
 
         if block_norm <= alpha_lc[j]:
@@ -166,9 +169,13 @@ def bcd_epoch(Y, C, norms_X_block, X, R, alpha, W, inv_lc):
                   overwrite_c=True)
             W_j[:] = W_j_new
 
+        #R += np.outer(X[:, j], W_j_old - W[j])
+        # R[:] = Y - X @ W
+        # np.testing.assert_allclose(Y - X @ W, R)
+
 
 def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
-                   tol=1e-12, p0=10, verbose=0, prune=True):
+                   tol=1e-12, p0=10, verbose=0, prune=True, accel=True):
     n_samples, n_features = X.shape
     n_tasks = Y.shape[1]
     n_obs = n_samples * n_tasks
@@ -212,25 +219,27 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
 
         norm_XT_Theta = norm(X.T @ Theta, axis=1)
         scal = max(norm_XT_Theta)
-        scal, norm_XT_Theta = dual_scaling_mtl(Theta, X, all_features,
-                                               screened)
+        # The piece of code below is slow.
+        # scal, norm_XT_Theta = dual_scaling_mtl(
+        # Theta, X, all_features, screened)
 
         if scal > 1.:
             Theta /= scal
             norm_XT_Theta /= scal
         d_obj = dual_mtl(alpha, norm_Y2, Theta, Y)
 
-        if t > 0:
-            scal, norm_XT_theta_in = dual_scaling_mtl(
-                Theta_in, X, all_features, screened)
-            if scal > 1.:
-                Theta_in /= scal
-                norm_XT_theta_in /= scal
-        d_obj_from_inner = dual_mtl(alpha, norm_Y2, Theta_in, Y)
-        if d_obj_from_inner > d_obj:
-            d_obj = d_obj_from_inner
-            Theta[:] = Theta_in
-            norm_XT_Theta[:] = norm_XT_theta_in
+        # The piece of code below is slow.
+        # if t > 0:
+        #     scal, norm_XT_theta_in = dual_scaling_mtl(
+        #         Theta_in, X, all_features, screened)
+        #     if scal > 1.:
+        #         Theta_in /= scal
+        #         norm_XT_theta_in /= scal
+        # d_obj_from_inner = dual_mtl(alpha, norm_Y2, Theta_in, Y)
+        # if d_obj_from_inner > d_obj:
+        #     d_obj = d_obj_from_inner
+        #     Theta[:] = Theta_in
+        #     norm_XT_Theta[:] = norm_XT_theta_in
 
         highest_d_obj = d_obj
 
@@ -249,8 +258,8 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
 
         radius = np.sqrt(2 * gap) / alpha
 
-        n_screened = set_prios_mtl(X, W, norms_X_block, prios, screened,
-                                   radius, n_screened, norm_XT_Theta)
+        n_screened = set_prios_mtl(X, W, norms_X_block, prios, screened, radius,
+                                   n_screened, norm_XT_Theta)
         ws_size = create_ws_mtl(prune, W, prios, p0, t, screened, C,
                                 n_screened, ws_size)
         # if ws_size == n_features then argpartition will break
@@ -283,7 +292,7 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
 
                 d_obj_in = dual_mtl(alpha, norm_Y2, Theta_in, Y)
 
-                if True:
+                if accel:
                     create_accel_pt(epoch, gap_freq, alpha, R, Thetacc,
                                     last_K_R, U, UtU, verbose_in)
 
@@ -313,9 +322,7 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
                             epoch, gap_in, tol_in))
                     break
 
-            # R[:] = Y - X @ W
-            # np.testing.assert_allclose(Y - X @ W, R)
-            bcd_epoch(Y, C, norms_X_block, X, R, alpha, W, inv_lc)
+            bcd_epoch(C, norms_X_block, X, R, alpha, W, inv_lc)
         else:
             print("!!! Inner solver did not converge at epoch "
                   "{:d}, gap: {:.2e} > {:.2e}".format(epoch, gap_in, tol_in))
@@ -325,6 +332,9 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
 class Solver(BaseSolver):
     name = "bcd_celer"
     stop_strategy = "iteration"
+
+    parameters = {"accelerated": (True, False)}
+
 
     def set_objective(self, X, Y, lmbd, n_orient=1):
         self.Y, self.lmbd = Y, lmbd
@@ -336,7 +346,7 @@ class Solver(BaseSolver):
     def run(self, n_iter):
         W = celer_dual_mtl(self.X, self.Y, self.lmbd,
                            n_iter, max_epochs=100_000, prune=True,
-                           verbose=0)[0]
+                           verbose=0, accel=self.accelerated)[0]
         self.W = W
 
     def get_result(self):

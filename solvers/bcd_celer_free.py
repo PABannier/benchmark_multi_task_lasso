@@ -1,4 +1,4 @@
-from mtl_utils.common import get_lipschitz
+from mtl_utils.common import get_lipschitz, groups_norm2
 from benchopt import BaseSolver, safe_import_context
 
 with safe_import_context() as import_ctx:
@@ -53,17 +53,13 @@ def set_prios_mtl(X, W, norms_X_block, prios, screened, radius,
 
 
 @njit
-def dual_scaling_mtl(Theta, X, C, skip, n_orient):
-    n_features = X.shape[1]
-    n_positions = n_features // n_orient
+def dual_scaling_mtl(Theta, X, C, skip, n_positions, n_orient):
     norm_XT_Theta = np.zeros(n_positions)
     nrm = 0
-
     for j in C:
         if skip[j]:
             continue
         idx = slice(j * n_orient, (j + 1) * n_orient)
-        # Xj_theta_nrm = norm(X[:, j] @ Theta, ord=2)
         Xj_theta_nrm = norm(np.dot(X[:, idx].T, Theta), ord=2)
         norm_XT_Theta[j] = Xj_theta_nrm
         if Xj_theta_nrm > nrm:
@@ -222,27 +218,26 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
 
     for t in range(n_iter):
         Theta[:] = R / alpha
-
         scal, norm_XT_Theta = dual_scaling_mtl(Theta, X, all_positions,
-                                               screened, n_orient)
+                                               screened, n_positions, n_orient)
 
         if scal > 1.:
             Theta /= scal
             norm_XT_Theta /= scal
         d_obj = dual_mtl(alpha, norm_Y2, Theta, Y)
 
-        if t > 0:
-            scal, norm_XT_Theta_in = dual_scaling_mtl(Theta_in, X,
-                                                      all_positions, screened,
-                                                      n_orient)
-            if scal > 1.:
-                Theta_in /= scal
-                norm_XT_Theta_in /= scal
-        d_obj_from_inner = dual_mtl(alpha, norm_Y2, Theta_in, Y)
-        if d_obj_from_inner > d_obj:
-            d_obj = d_obj_from_inner
-            Theta[:] = Theta_in
-            norm_XT_Theta[:] = norm_XT_Theta_in
+        # if t > 0:
+        #     scal, norm_XT_Theta_in = dual_scaling_mtl(Theta_in, X,
+        #                                               all_positions, screened,
+        #                                               n_orient)
+        #     if scal > 1.:
+        #         Theta_in /= scal
+        #         norm_XT_Theta_in /= scal
+        # d_obj_from_inner = dual_mtl(alpha, norm_Y2, Theta_in, Y)
+        # if d_obj_from_inner > d_obj:
+        #     d_obj = d_obj_from_inner
+        #     Theta[:] = Theta_in
+        #     norm_XT_Theta[:] = norm_XT_Theta_in
 
         highest_d_obj = d_obj
 
@@ -289,7 +284,8 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
             if epoch > 0 and epoch % gap_freq == 0:
                 Theta_in[:] = R / alpha
 
-                scal = dual_scaling_mtl(Theta_in, X, C, screened, n_orient)[0]
+                scal = dual_scaling_mtl(Theta_in, X, C, screened,
+                                        n_positions, n_orient)[0]
                 if scal > 1.:
                     Theta_in /= scal
 
@@ -301,7 +297,7 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
 
                     if epoch // gap_freq >= K:
                         scal = dual_scaling_mtl(Thetacc, X, C, screened,
-                                                n_orient)[0]
+                                                n_positions, n_orient)[0]
 
                         if scal > 1.:
                             Thetacc /= scal
