@@ -9,10 +9,9 @@ with safe_import_context() as import_ctx:
 
 
 def dual_mtl(alpha, norm_Y2, Theta, Y):
-    r"""
+    """
     Problem solved:
-    \min \frac{\lambda**2}{2} \norm{\frac{Y}{\lambda} - \Theta} ** 2
-    + \frac{1}{2} \norm{Y} ** 2
+    min 0.5 * (lambda ** 2) * ||(Y / lambda) - Theta|| ** 2 + 0.5 * ||Y|| ** 2 
     """
     d_obj = - ((Y / alpha - Theta) ** 2).sum()
     d_obj *= 0.5 * alpha ** 2
@@ -21,9 +20,9 @@ def dual_mtl(alpha, norm_Y2, Theta, Y):
 
 
 def primal_mtl(W, alpha, R, n_orient):
-    r"""
+    """
     Problem solved:
-    \min \frac{1}{2} \norm{Y - XB} ** 2 + \lambda \norm{B}_{2, 1}
+    min 0.5 * ||Y - XB|| ** 2 + lambda * ||B||_{2, 1}
     """
     p_obj = sum_squared(R) / 2
     p_obj += norm_l21(W, n_orient, copy=False) * alpha
@@ -32,7 +31,7 @@ def primal_mtl(W, alpha, R, n_orient):
 
 @njit
 def set_prios_mtl(X, W, norms_X_block, prios, screened, radius,
-                  n_screened, norm_XT_theta, n_orient):
+                  n_screened, norm_XT_Theta, n_orient):
     n_features = X.shape[1]
     n_tasks = W.shape[1]
     n_positions = n_features // n_orient
@@ -40,7 +39,7 @@ def set_prios_mtl(X, W, norms_X_block, prios, screened, radius,
         if screened[j] or norms_X_block[j] == 0:
             prios[j] = np.inf
             continue
-        nrm = norm_XT_theta[j]
+        nrm = norm_XT_Theta[j]
         prios[j] = (1. - nrm) / norms_X_block[j]
         if prios[j] > radius:
             idx = slice(j * n_orient, (j + 1) * n_orient)
@@ -57,7 +56,7 @@ def set_prios_mtl(X, W, norms_X_block, prios, screened, radius,
 def dual_scaling_mtl(Theta, X, C, skip, n_orient):
     n_features = X.shape[1]
     n_positions = n_features // n_orient
-    norm_XT_theta = np.zeros(n_positions)
+    norm_XT_Theta = np.zeros(n_positions)
     nrm = 0
 
     for j in C:
@@ -66,10 +65,10 @@ def dual_scaling_mtl(Theta, X, C, skip, n_orient):
         idx = slice(j * n_orient, (j + 1) * n_orient)
         # Xj_theta_nrm = norm(X[:, j] @ Theta, ord=2)
         Xj_theta_nrm = norm(np.dot(X[:, idx].T, Theta), ord=2)
-        norm_XT_theta[j] = Xj_theta_nrm
+        norm_XT_Theta[j] = Xj_theta_nrm
         if Xj_theta_nrm > nrm:
             nrm = Xj_theta_nrm
-    return nrm, norm_XT_theta
+    return nrm, norm_XT_Theta
 
 
 @njit
@@ -142,11 +141,11 @@ def create_accel_pt(epoch, gap_freq, alpha, R, out, last_K_R, U, UtU,
             # out now holds the extrapolated dual point
 
 
-def bcd_epoch(Y, C, lipschitz_consts, X, R, alpha, W, inv_lc, n_orient):
+def bcd_epoch(Y, C, lipschitz_consts, X, R, alpha, W, n_orient):
     n_tasks = R.shape[1]
     W_j_new = np.zeros((n_orient, n_tasks))
     dgemm = _get_dgemm()
-    alpha_lc = alpha * inv_lc
+    alpha_lc = alpha / lipschitz_consts
 
     for j in C:
         if lipschitz_consts[j] == 0.:
@@ -156,7 +155,7 @@ def bcd_epoch(Y, C, lipschitz_consts, X, R, alpha, W, inv_lc, n_orient):
         X_j = X[:, idx]
 
         # W_j_new = X_j.T @ R * inv_lc[j]
-        dgemm(alpha=inv_lc[j], beta=0.0, a=R.T, b=X_j, c=W_j_new.T,
+        dgemm(alpha=1/lipschitz_consts[j], beta=0.0, a=R.T, b=X_j, c=W_j_new.T,
               overwrite_c=True)
 
         if W_j[0, 0] != 0:
@@ -209,7 +208,6 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
     #inv_lc = 1 / norms_X_block ** 2
     lipschitz_consts = get_lipschitz(X, n_orient)  # TODO: CHECK! (TBD)
     norms_X_block = np.sqrt(lipschitz_consts)  # TODO: CHECK! (TBD)
-    inv_lc = 1 / lipschitz_consts  # TODO: CHECK! (TBD)
 
     gaps = np.zeros(n_iter, dtype=X.dtype)
 
@@ -225,9 +223,6 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
     for t in range(n_iter):
         Theta[:] = R / alpha
 
-        #norm_XT_Theta = norm(X.T @ Theta, axis=1)
-        norm_XT_Theta = np.sqrt(groups_norm2(X.T @ Theta, n_orient))
-        scal = max(norm_XT_Theta)
         scal, norm_XT_Theta = dual_scaling_mtl(Theta, X, all_positions,
                                                screened, n_orient)
 
@@ -237,16 +232,16 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
         d_obj = dual_mtl(alpha, norm_Y2, Theta, Y)
 
         if t > 0:
-            scal, norm_XT_theta_in = dual_scaling_mtl(Theta_in, X, all_positions,
+            scal, norm_XT_Theta_in = dual_scaling_mtl(Theta_in, X, all_positions,
                                                       screened, n_orient)
             if scal > 1.:
                 Theta_in /= scal
-                norm_XT_theta_in /= scal
+                norm_XT_Theta_in /= scal
         d_obj_from_inner = dual_mtl(alpha, norm_Y2, Theta_in, Y)
         if d_obj_from_inner > d_obj:
             d_obj = d_obj_from_inner
             Theta[:] = Theta_in
-            norm_XT_Theta[:] = norm_XT_theta_in
+            norm_XT_Theta[:] = norm_XT_Theta_in
 
         highest_d_obj = d_obj
 
@@ -329,7 +324,7 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
                             epoch, gap_in, tol_in))
                     break
 
-            bcd_epoch(Y, C, lipschitz_consts, X, R, alpha, W, inv_lc, n_orient)
+            bcd_epoch(Y, C, lipschitz_consts, X, R, alpha, W, n_orient)
         else:
             print("!!! Inner solver did not converge at epoch "
                   "{:d}, gap: {:.2e} > {:.2e}".format(epoch, gap_in, tol_in))
