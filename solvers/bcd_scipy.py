@@ -116,7 +116,8 @@ def bcd_(
                     coef_acc = np.sum(
                         last_K_coef[:-1] * c[:, None, None], axis=0
                     )
-                    active_set_acc = norm(coef_acc, axis=1) != 0
+                    #active_set_acc = norm(coef_acc, axis=1) != 0
+                    active_set_acc = groups_norm2(coef_acc, n_orient) != 0
 
                     p_obj_acc = get_duality_gap(
                         X,
