@@ -65,7 +65,7 @@ def dual_scaling_mtl(Theta, X, C, skip, n_orient):
             continue
         idx = slice(j * n_orient, (j + 1) * n_orient)
         # Xj_theta_nrm = norm(X[:, j] @ Theta, ord=2)
-        Xj_theta_nrm = norm(X[:, idx] @ Theta, ord=2)
+        Xj_theta_nrm = norm(np.dot(X[:, idx].T, Theta), ord=2)
         norm_XT_theta[j] = Xj_theta_nrm
         if Xj_theta_nrm > nrm:
             nrm = Xj_theta_nrm
@@ -144,7 +144,7 @@ def create_accel_pt(epoch, gap_freq, alpha, R, out, last_K_R, U, UtU,
 
 def bcd_epoch(Y, C, lipschitz_consts, X, R, alpha, W, inv_lc, n_orient):
     n_tasks = R.shape[1]
-    W_j_new = np.zeros((1, n_tasks))
+    W_j_new = np.zeros((n_orient, n_tasks))
     dgemm = _get_dgemm()
     alpha_lc = alpha * inv_lc
 
@@ -266,9 +266,9 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
         radius = np.sqrt(2 * gap) / alpha
 
         n_screened = set_prios_mtl(X, W, norms_X_block, prios, screened,
-                                   radius, n_screened, norm_XT_Theta)
+                                   radius, n_screened, norm_XT_Theta, n_orient)
         ws_size = create_ws_mtl(prune, W, prios, p0, t, screened, C, n_screened,
-                                ws_size)
+                                ws_size, n_orient)
         # if ws_size == n_features then argpartition will break
         if ws_size == n_positions:
             C = all_positions
@@ -329,7 +329,7 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
                             epoch, gap_in, tol_in))
                     break
 
-            bcd_epoch(Y, C, lipschitz_consts, X, R, alpha, W, inv_lc)
+            bcd_epoch(Y, C, lipschitz_consts, X, R, alpha, W, inv_lc, n_orient)
         else:
             print("!!! Inner solver did not converge at epoch "
                   "{:d}, gap: {:.2e} > {:.2e}".format(epoch, gap_in, tol_in))
