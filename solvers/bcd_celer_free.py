@@ -1,4 +1,4 @@
-from mtl_utils.common import get_lipschitz, groups_norm2
+from mtl_utils.common import get_lipschitz
 from benchopt import BaseSolver, safe_import_context
 
 with safe_import_context() as import_ctx:
@@ -11,7 +11,7 @@ with safe_import_context() as import_ctx:
 def dual_mtl(alpha, norm_Y2, Theta, Y):
     """
     Problem solved:
-    min 0.5 * (lambda ** 2) * ||(Y / lambda) - Theta|| ** 2 + 0.5 * ||Y|| ** 2 
+    min 0.5 * (lambda ** 2) * ||(Y / lambda) - Theta|| ** 2 + 0.5 * ||Y|| ** 2
     """
     d_obj = - ((Y / alpha - Theta) ** 2).sum()
     d_obj *= 0.5 * alpha ** 2
@@ -151,7 +151,7 @@ def bcd_epoch(Y, C, lipschitz_consts, X, R, alpha, W, n_orient):
         if lipschitz_consts[j] == 0.:
             continue
         idx = slice(j * n_orient, (j + 1) * n_orient)
-        W_j = W[idx, :] # W[idx]
+        W_j = W[idx]
         X_j = X[:, idx]
 
         # W_j_new = X_j.T @ R * inv_lc[j]
@@ -204,8 +204,8 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
     U = np.empty((K - 1, n_obs), dtype=X.dtype)
     UtU = np.empty((K - 1, K - 1), dtype=X.dtype)
 
-    #norms_X_block = norm(X, axis=0) => norm of each column
-    #inv_lc = 1 / norms_X_block ** 2
+    # norms_X_block = norm(X, axis=0) => norm of each column
+    # inv_lc = 1 / norms_X_block ** 2
     lipschitz_consts = get_lipschitz(X, n_orient)  # TODO: CHECK! (TBD)
     norms_X_block = np.sqrt(lipschitz_consts)  # TODO: CHECK! (TBD)
 
@@ -232,8 +232,9 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
         d_obj = dual_mtl(alpha, norm_Y2, Theta, Y)
 
         if t > 0:
-            scal, norm_XT_Theta_in = dual_scaling_mtl(Theta_in, X, all_positions,
-                                                      screened, n_orient)
+            scal, norm_XT_Theta_in = dual_scaling_mtl(Theta_in, X,
+                                                      all_positions, screened,
+                                                      n_orient)
             if scal > 1.:
                 Theta_in /= scal
                 norm_XT_Theta_in /= scal
@@ -262,8 +263,8 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
 
         n_screened = set_prios_mtl(X, W, norms_X_block, prios, screened,
                                    radius, n_screened, norm_XT_Theta, n_orient)
-        ws_size = create_ws_mtl(prune, W, prios, p0, t, screened, C, n_screened,
-                                ws_size, n_orient)
+        ws_size = create_ws_mtl(prune, W, prios, p0, t, screened, C,
+                                n_screened, ws_size, n_orient)
         # if ws_size == n_features then argpartition will break
         if ws_size == n_positions:
             C = all_positions

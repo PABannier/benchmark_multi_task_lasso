@@ -8,10 +8,9 @@ with safe_import_context() as import_ctx:
 
 
 def dual_mtl(alpha, norm_Y2, Theta, Y):
-    r"""
+    """
     Problem solved:
-    \min \frac{\lambda**2}{2} \norm{\frac{Y}{\lambda} - \Theta} ** 2
-    + \frac{1}{2} \norm{Y} ** 2
+    min 0.5 * (lambda ** 2) * ||(Y / lambda) - Theta|| ** 2 + 0.5 * ||Y|| ** 2
     """
     d_obj = - ((Y / alpha - Theta) ** 2).sum()
     d_obj *= 0.5 * alpha ** 2
@@ -19,10 +18,10 @@ def dual_mtl(alpha, norm_Y2, Theta, Y):
     return d_obj
 
 
-def primal_mtl(W, alpha, R):    
-    r"""
+def primal_mtl(W, alpha, R):
+    """
     Problem solved:
-    \min \frac{1}{2} \norm{Y - XB} ** 2 + \lambda \norm{B}_{2, 1}
+    min 0.5 * ||Y - XB|| ** 2 + lambda * ||B||_{2, 1}
     """
     p_obj = sum_squared(R) / 2
     p_obj += norm_l21(W, 1, copy=False) * alpha
@@ -142,9 +141,9 @@ def bcd_epoch(Y, C, norms_X_block, X, R, alpha, W, inv_lc):
         if norms_X_block[j] == 0.:
             continue
         idx = slice(j, j+1)
-        W_j = W[idx,:]
+        W_j = W[idx, :]
         X_j = X[:, idx]
-        
+
         # W_j_new = X_j.T @ R * inv_lc[j]
         dgemm(alpha=inv_lc[j], beta=0.0, a=R.T, b=X_j, c=W_j_new.T,
               overwrite_c=True)
@@ -156,7 +155,7 @@ def bcd_epoch(Y, C, norms_X_block, X, R, alpha, W, inv_lc):
             W_j_new += W_j
 
         block_norm = norm(W_j_new)
-        
+
         if block_norm <= alpha_lc[j]:
             W_j.fill(0.0)
         else:
@@ -213,8 +212,8 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
 
         norm_XT_Theta = norm(X.T @ Theta, axis=1)
         scal = max(norm_XT_Theta)
-        scal, norm_XT_Theta = dual_scaling_mtl(
-        Theta, X, all_features, screened)
+        scal, norm_XT_Theta = dual_scaling_mtl(Theta, X, all_features,
+                                               screened)
 
         if scal > 1.:
             Theta /= scal
@@ -250,8 +249,8 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
 
         radius = np.sqrt(2 * gap) / alpha
 
-        n_screened = set_prios_mtl(X, W, norms_X_block, prios, screened, radius,
-                                   n_screened, norm_XT_Theta)
+        n_screened = set_prios_mtl(X, W, norms_X_block, prios, screened,
+                                   radius, n_screened, norm_XT_Theta)
         ws_size = create_ws_mtl(prune, W, prios, p0, t, screened, C,
                                 n_screened, ws_size)
         # if ws_size == n_features then argpartition will break
