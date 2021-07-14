@@ -1,7 +1,7 @@
-from mtl_utils.common import get_lipschitz, groups_norm2
 from benchopt import BaseSolver, safe_import_context
 
 with safe_import_context() as import_ctx:
+    from mtl_utils.common import get_alpha_max, get_lipschitz, groups_norm2
     import numpy as np
     from numpy.linalg import norm
     from numba import njit
@@ -43,10 +43,7 @@ def set_prios_mtl(X, W, norms_X_block, prios, screened, radius,
         prios[j] = (1. - nrm) / norms_X_block[j]
         if prios[j] > radius:
             idx = slice(j * n_orient, (j + 1) * n_orient)
-            for k in range(n_tasks):
-                if np.all(W[idx, k] != 0):
-                    break
-            else:
+            if np.any(W[idx, :]):
                 screened[j] = True
                 n_screened += 1
     return n_screened
@@ -77,7 +74,7 @@ def dual_scaling_mtl(Theta, Xs_j, C, skip):
 #     for j in C:
 #         if skip[j]:
 #             continue
-#         # dgemm(alpha=1.0, beta=1.0, a=Theta.T, b=Xs_j[j], c=Xj_theta.T, 
+#         # dgemm(alpha=1.0, beta=1.0, a=Theta.T, b=Xs_j[j], c=Xj_theta.T,
 #         #      overwrite_c=True)
 #         np.dot(Xs_j[j], Theta, out=Xj_theta)
 #         Xj_theta_nrm = norm(Xj_theta, ord='fro')
@@ -90,7 +87,7 @@ def dual_scaling_mtl(Theta, Xs_j, C, skip):
 @njit
 def create_ws_mtl(prune, W, prios, p0, t, screened, C, n_screened, ws_size,
                   n_orient):
-    n_features, n_tasks = W.shape
+    n_features = W.shape[0]
     n_positions = n_features // n_orient
 
     if t == 0:
@@ -220,7 +217,7 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
 
     # norms_X_block = norm(X, axis=0) => norm of each column
     # inv_lc = 1 / norms_X_block ** 2
-    lipschitz_consts = get_lipschitz(X, n_orient) 
+    lipschitz_consts = get_lipschitz(X, n_orient)
     norms_X_block = np.sqrt(lipschitz_consts)  # TODO: CHECK! (TBD)
 
     gaps = np.zeros(n_iter, dtype=X.dtype)
