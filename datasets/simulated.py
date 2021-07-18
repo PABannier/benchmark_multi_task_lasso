@@ -4,7 +4,6 @@ from benchopt import safe_import_context
 with safe_import_context() as import_ctx:
     import numpy as np
     from numpy.linalg import norm
-    from scipy import signal
 
 
 class Dataset(BaseDataset):
@@ -12,7 +11,7 @@ class Dataset(BaseDataset):
 
     parameters = {
         "n_samples, n_features, n_tasks": [
-            (306, 24000, 10),
+            (306, 24_000, 20),
             # (100, 300, 10),
         ],
     }
@@ -34,7 +33,6 @@ class Dataset(BaseDataset):
         self.corr = corr
 
     def get_data(self):
-
         rng = np.random.RandomState(self.random_state)
         sigma = np.sqrt(1 - self.corr ** 2)
         U = rng.randn(self.n_samples)

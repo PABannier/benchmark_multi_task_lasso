@@ -7,6 +7,12 @@ with safe_import_context() as import_ctx:
     from mtl_utils.common import sum_squared, _get_dgemm, norm_l21
 
 
+if import_ctx.failed_import:
+
+    def njit(f):  # noqa: F811
+        return f
+
+
 def dual_mtl(alpha, norm_Y2, Theta, Y):
     """
     Problem solved:
@@ -115,7 +121,7 @@ def create_accel_pt(epoch, gap_freq, alpha, R, out, last_K_R, U, UtU,
 
         try:
             anderson = np.linalg.solve(UtU, np.ones(UtU.shape[0]))
-        except:
+        except Exception:
             # np.linalg.LinAlgError
             # Numba only accepts Error/Exception inheriting from the generic
             # Exception class
@@ -141,10 +147,10 @@ def bcd_epoch(C, norms_X_block, X, R, alpha, W, inv_lc):
         if norms_X_block[j] == 0.:
             continue
         idx = slice(j, j+1)
-        W_j = W[idx,:]
+        W_j = W[idx, :]
         X_j = X[:, idx]
 
-        #W_j_old = W[j].copy()
+        # W_j_old = W[j].copy()
 
         # W_j_new = X_j.T @ R * inv_lc[j]
         dgemm(alpha=inv_lc[j], beta=0.0, a=R.T, b=X_j, c=W_j_new.T,
@@ -169,7 +175,7 @@ def bcd_epoch(C, norms_X_block, X, R, alpha, W, inv_lc):
                   overwrite_c=True)
             W_j[:] = W_j_new
 
-        #R += np.outer(X[:, j], W_j_old - W[j])
+        # R += np.outer(X[:, j], W_j_old - W[j])
         # R[:] = Y - X @ W
         # np.testing.assert_allclose(Y - X @ W, R)
 
@@ -258,8 +264,8 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
 
         radius = np.sqrt(2 * gap) / alpha
 
-        n_screened = set_prios_mtl(X, W, norms_X_block, prios, screened, radius,
-                                   n_screened, norm_XT_Theta)
+        n_screened = set_prios_mtl(X, W, norms_X_block, prios, screened,
+                                   radius, n_screened, norm_XT_Theta)
         ws_size = create_ws_mtl(prune, W, prios, p0, t, screened, C,
                                 n_screened, ws_size)
         # if ws_size == n_features then argpartition will break
@@ -335,6 +341,10 @@ class Solver(BaseSolver):
 
     parameters = {"accelerated": (True, False)}
 
+    def skip(self, X, Y, lmbd, n_orient):
+        if n_orient != 1:
+            return True, "bcd_celer does not support n_orient != 1"
+        return False, None
 
     def set_objective(self, X, Y, lmbd, n_orient=1):
         self.Y, self.lmbd = Y, lmbd

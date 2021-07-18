@@ -1,17 +1,24 @@
 from benchopt import BaseSolver, safe_import_context
 
 with safe_import_context() as import_ctx:
-    from mtl_utils.common import get_alpha_max, get_lipschitz, groups_norm2
+    # from mtl_utils.common import get_alpha_max, get_lipschitz, groups_norm2
+    from mtl_utils.common import get_lipschitz
     import numpy as np
     from numpy.linalg import norm
     from numba import njit
     from mtl_utils.common import sum_squared, _get_dgemm, norm_l21
 
 
+if import_ctx.failed_import:
+
+    def njit(f):  # noqa: F811
+        return f
+
+
 def dual_mtl(alpha, norm_Y2, Theta, Y):
     """
     Problem solved:
-    max - 0.5 * (lambda ** 2) * ||(Y / lambda) - Theta|| ** 2 + 0.5 * ||Y|| ** 2
+    max - 0.5 * (lambda ** 2) * ||(Y/lambda) - Theta|| ** 2 + 0.5 * ||Y|| ** 2
     """
     d_obj = - ((Y / alpha - Theta) ** 2).sum()
     d_obj *= 0.5 * alpha ** 2
@@ -33,7 +40,6 @@ def primal_mtl(W, alpha, R, n_orient):
 def set_prios_mtl(X, W, norms_X_block, prios, screened, radius,
                   n_screened, norm_XT_Theta, n_orient):
     n_features = X.shape[1]
-    n_tasks = W.shape[1]
     n_positions = n_features // n_orient
     for j in range(n_positions):
         if screened[j] or norms_X_block[j] == 0:
@@ -136,7 +142,7 @@ def create_accel_pt(epoch, gap_freq, alpha, R, out, last_K_R, U, UtU,
 
         try:
             anderson = np.linalg.solve(UtU, np.ones(UtU.shape[0]))
-        except:
+        except Exception:
             # np.linalg.LinAlgError
             # Numba only accepts Error/Exception inheriting from the generic
             # Exception class
@@ -248,7 +254,8 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
 
         # if t > 0:
         #     scal, norm_XT_Theta_in = dual_scaling_mtl(Theta_in, X,
-        #                                               all_positions, screened,
+        #                                               all_positions,
+        #                                               screened,
         #                                               n_orient)
         #     if scal > 1.:
         #         Theta_in /= scal
