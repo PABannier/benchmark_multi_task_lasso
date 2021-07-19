@@ -1,11 +1,9 @@
-import functools
 from benchopt import BaseSolver
 from benchopt import safe_import_context
 
 
 with safe_import_context() as import_ctx:
     import numpy as np
-    from numpy.linalg import norm
     from mtl_utils.common import (groups_norm2, get_lipschitz, bcd_pass,
                                   build_full_coefficient_matrix)
 
