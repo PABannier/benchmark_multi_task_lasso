@@ -285,13 +285,11 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
         ws_size = create_ws_mtl(prune, W, prios, p0, t, screened, C,
                                 n_screened, ws_size, n_orient)
         # if ws_size == n_features then argpartition will break
-        # if ws_size == n_positions:
-        #     C = all_positions
-        # else:
-        #     C = np.argpartition(np.asarray(prios), ws_size)[
-        #         :ws_size].astype(np.int32)
-
-        C = np.sort(np.asarray(prios))[:ws_size]
+        if ws_size == n_positions:
+            C = all_positions
+        else:
+            C = np.argpartition(np.asarray(prios), ws_size)[
+                :ws_size].astype(np.int32)
 
         notin_WS.fill(1)
         notin_WS[C] = 0
