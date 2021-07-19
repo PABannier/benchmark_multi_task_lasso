@@ -43,17 +43,8 @@ def _bcd(W, X, R, lipschitz, n_orient, active_set, alpha):
 _bcd_numbda = njit(_bcd)
 
 
-def bcd(
-    X,
-    Y,
-    lipschitz,
-    init,
-    _alpha,
-    n_orient,
-    bcd_factory,
-    max_iter=2000,
-    tol=1e-5,
-):
+def bcd(X, Y, lipschitz, init, _alpha, n_orient, bcd_factory, max_iter=2000,
+        tol=1e-5):
     _, n_times = Y.shape
     _, n_features = X.shape
 
@@ -136,9 +127,8 @@ class Solver(BaseSolver):
         # Make sure we cache the numba compilation.
         lipschitz, active_set, bcd_ = self._prepare_bcd()
 
-        bcd_(
-            self.W, self.X, self.R, lipschitz, n_orient, active_set, self.lmbd
-        )
+        bcd_(self.W, self.X, self.R, lipschitz, n_orient, active_set,
+             self.lmbd)
 
     def run(self, callback):
         lipschitz, active_set, bcd_ = self._prepare_bcd()
@@ -151,17 +141,9 @@ class Solver(BaseSolver):
         while callback(self.W):
             lipschitz_as = lipschitz[active_set[:: self.n_orient]]
 
-            coef, as_ = bcd(
-                self.X[:, active_set],
-                self.Y,
-                lipschitz_as,
-                coef_init,
-                self.lmbd,
-                self.n_orient,
-                bcd_,
-                max_iter=self.max_iter,
-                tol=self.tol,
-            )
+            coef, as_ = bcd(self.X[:, active_set], self.Y, lipschitz_as,
+                            coef_init, self.lmbd, self.n_orient, bcd_,
+                            max_iter=self.max_iter, tol=self.tol)
 
             active_set[active_set] = as_.copy()
             idx_old_active_set = np.where(active_set)[0]
