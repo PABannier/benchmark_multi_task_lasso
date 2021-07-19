@@ -8,13 +8,6 @@ with safe_import_context() as import_ctx:
     from mtl_utils.common import sum_squared
 
 
-def cd_(X, Y, alpha, init, maxit=10000, tol=1e-8, n_orient=1, dgap_freq=10):
-    clf = MultiTaskLasso(alpha=alpha / len(Y), tol=tol / sum_squared(Y),
-                         normalize=False, fit_intercept=False, max_iter=maxit)
-    W = clf.coef_.T
-    return W
-
-
 class Solver(BaseSolver):
     name = "bcd_celer_cython"
     stop_strategy = 'iteration'
