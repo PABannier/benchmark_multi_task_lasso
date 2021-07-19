@@ -1,9 +1,9 @@
+import functools
 from benchopt import BaseSolver
 from benchopt import safe_import_context
 
 
 with safe_import_context() as import_ctx:
-    import functools
     import numpy as np
     from numpy.linalg import norm
     from mtl_utils.common import (groups_norm2, get_lipschitz,
@@ -34,8 +34,8 @@ def bcd_(
     max_iter=2000,
     tol=1e-5,
 ):
-    n_samples, n_times = Y.shape
-    n_samples, n_features = X.shape
+    _, n_times = Y.shape
+    _, n_features = X.shape
     n_positions = n_features // n_orient
 
     if init is None:
@@ -154,8 +154,7 @@ def bcd_(
 
 
 class Solver(BaseSolver):
-    """Block coordinate descent with
-    low-level BLAS function calls"""
+    """Block coordinate descent with low-level BLAS function calls"""
 
     name = "bcd_geom_as"
     stop_strategy = "callback"
@@ -209,7 +208,7 @@ class Solver(BaseSolver):
                 tol=self.tol,
             )
 
-            active_set[active_set] = as_.copy()
+            active_set[active_set] = as_
             self.build_full_coefficient_matrix(active_set, n_times, coef)
 
             # Geometric growth of active set

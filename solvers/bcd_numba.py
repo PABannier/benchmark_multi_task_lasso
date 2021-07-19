@@ -9,6 +9,11 @@ with safe_import_context() as import_ctx:
     from mtl_utils.common import (groups_norm2, get_lipschitz,
                                   get_duality_gap)
 
+if import_ctx.failed_import:
+
+    def njit(f):  # noqa: F811
+        return f
+
 
 @njit
 def _block_soft_thresh(x, u):

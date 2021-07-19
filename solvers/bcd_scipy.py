@@ -141,12 +141,11 @@ def bcd_(
 
 
 class Solver(BaseSolver):
-    """Block coordinate descent with
-    low-level BLAS function calls"""
+    """Block coordinate descent with low-level BLAS function calls"""
 
     name = "bcd_blas_low_level"
     stop_strategy = "callback"
-    #parameters = {"accelerated": (True, False)}
+    # parameters = {"accelerated": (True, False)}
 
     def set_objective(self, X, Y, lmbd, n_orient):
         self.X, self.Y = X, Y

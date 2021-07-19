@@ -1,28 +1,25 @@
+import warnings
 from benchopt import BaseSolver
 from benchopt import safe_import_context
 
 with safe_import_context() as import_ctx:
     import numpy as np
     from sklearn.linear_model import MultiTaskLasso
-    from mtl_utils.common import (groups_norm2, get_lipschitz,
-                                  sum_squared)
+    from sklearn.exceptions import ConvergenceWarning
+    from mtl_utils.common import groups_norm2, sum_squared
 
 
 def cd_(
     X,
     Y,
-    lipschitz_constant,
     alpha,
     init,
-    maxit=10000,
+    maxit=10_000,
     tol=1e-8,
-    n_orient=1,
-    dgap_freq=10,
 ):
     clf = MultiTaskLasso(
         alpha=alpha / len(Y),
         tol=tol / sum_squared(Y),
-        normalize=False,
         fit_intercept=False,
         max_iter=maxit,
         warm_start=True,
@@ -40,11 +37,14 @@ def cd_(
 
 
 class Solver(BaseSolver):
-    """Block coordinate descent with
-    low-level BLAS function calls"""
-
+    """Block coordinate descent with low-level BLAS function calls"""
     name = "cd_sklearn"
     stop_strategy = "callback"
+
+    def skip(self, X, Y, lmbd, n_orient):
+        if n_orient != 1:
+            return True, "sklearn does not support n_orient != 1"
+        return False, None
 
     def set_objective(self, X, Y, lmbd, n_orient):
         self.X, self.Y = X, Y
@@ -56,10 +56,10 @@ class Solver(BaseSolver):
         self.max_iter = 3000
 
     def run(self, callback):
+        warnings.filterwarnings('ignore', category=ConvergenceWarning)
+
         n_features = self.X.shape[1]
         n_times = self.Y.shape[1]
-
-        lipschitz_consts = get_lipschitz(self.X, self.n_orient)
 
         # Initializing active set
         active_set = np.zeros(n_features, dtype=bool)
@@ -81,19 +81,13 @@ class Solver(BaseSolver):
         iter_idx = 0
 
         while callback(self.W):
-            lipschitz_consts_tmp = lipschitz_consts[
-                active_set[:: self.n_orient]
-            ]
-
             coef, as_ = cd_(
                 self.X[:, active_set],
                 self.Y,
-                lipschitz_consts_tmp,
                 self.lmbd,
                 coef_init,
                 maxit=self.max_iter,
                 tol=self.tol,
-                n_orient=self.n_orient,
             )
 
             active_set[active_set] = as_.copy()
