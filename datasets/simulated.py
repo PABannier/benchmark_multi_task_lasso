@@ -58,25 +58,6 @@ class Dataset(BaseDataset):
 
         Y += sigma * noise
 
-        # noise = rng.randn(self.n_samples, self.n_tasks)
-        # noise_corr = signal.lfilter([1], [1, -0.9], noise, axis=1)
-        # sigma = 1 / norm(noise_corr) * norm(Y) / self.snr
-        # Y += sigma * noise_corr
-
-        # rng = np.random.RandomState(self.random_state)
-        # X = rng.randn(self.n_samples, self.n_features)
-
-        # support = rng.choice(self.nnz, size=self.n_features)
-        # W = np.zeros((self.n_features, self.n_tasks))
-        # for k in support:
-        #     W[k, :] = rng.normal(size=(self.n_tasks))
-        # Y = X @ W
-
-        # noise = rng.randn(self.n_samples, self.n_tasks)
-        # sigma = 1 / norm(noise) * norm(Y) / self.snr
-
-        # Y += sigma * noise
-
         data = dict(X=X, Y=Y)
 
         return X.size, data

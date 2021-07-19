@@ -59,16 +59,12 @@ def set_prios_mtl(X, W, norms_X_block, prios, screened, radius,
 def dual_scaling_mtl(Theta, X, C, skip):
     n_features = X.shape[1]
     norm_XT_Theta = np.zeros(n_features)
-    nrm = 0
-
     for j in C:
         if skip[j]:
             continue
         Xj_Theta_nrm = norm(X[:, j] @ Theta, ord=2)
         norm_XT_Theta[j] = Xj_Theta_nrm
-        if Xj_Theta_nrm > nrm:
-            nrm = Xj_Theta_nrm
-    return nrm, norm_XT_Theta
+    return np.max(norm_XT_Theta), norm_XT_Theta
 
 
 @njit
@@ -122,9 +118,6 @@ def create_accel_pt(epoch, gap_freq, alpha, R, out, last_K_R, U, UtU,
         try:
             anderson = np.linalg.solve(UtU, np.ones(UtU.shape[0]))
         except Exception:
-            # np.linalg.LinAlgError
-            # Numba only accepts Error/Exception inheriting from the generic
-            # Exception class
             if verbose:
                 print("Singular matrix when computing accelerated point.")
         else:
@@ -150,13 +143,11 @@ def bcd_epoch(C, norms_X_block, X, R, alpha, W, inv_lc):
         W_j = W[idx, :]
         X_j = X[:, idx]
 
-        # W_j_old = W[j].copy()
-
         # W_j_new = X_j.T @ R * inv_lc[j]
         dgemm(alpha=inv_lc[j], beta=0.0, a=R.T, b=X_j, c=W_j_new.T,
               overwrite_c=True)
 
-        if W_j[0, 0] != 0:
+        if np.any(W_j[0, :]):
             # R += np.dot(X_j, W_j)
             dgemm(alpha=1.0, beta=1.0, a=W_j.T, b=X_j.T, c=R.T,
                   overwrite_c=True)
@@ -196,7 +187,7 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
     if p0 > n_features:
         p0 = n_features
 
-    prios = np.empty(n_features, dtype=X.dtype)
+    prios = np.zeros(n_features, dtype=X.dtype)
     screened = np.zeros(n_features, dtype=np.int32)
     notin_WS = np.zeros(n_features, dtype=np.int32)
 
@@ -269,19 +260,18 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
         ws_size = create_ws_mtl(prune, W, prios, p0, t, screened, C,
                                 n_screened, ws_size)
         # if ws_size == n_features then argpartition will break
-        if ws_size == n_features:
-            C = all_features
-        else:
-            C = np.argpartition(np.asarray(prios), ws_size)[
-                :ws_size].astype(np.int32)
+        # if ws_size == n_features:
+        #     C = all_features
+        # else:
+        #     C = np.argpartition(np.asarray(prios), ws_size)[
+        #         :ws_size].astype(np.int32)
+
+        C = np.sort(np.asarray(prios))[:ws_size]
 
         notin_WS.fill(1)
         notin_WS[C] = 0
 
-        if prune:
-            tol_in = 0.3 * gap
-        else:
-            tol_in = tol
+        tol_in = 0.3 * gap if prune else tol
 
         if verbose:
             print(", {:d} feats in subpb ({:d} left)".format(
