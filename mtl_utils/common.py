@@ -81,7 +81,7 @@ def get_duality_gap(X, Y, W, active_set, alpha, n_orient=1, primal_only=False):
 
 
 def bcd_pass(X, Y, lipschitz, init, _alpha, n_orient, accelerated, K=5,
-         max_iter=2000, tol=1e-5):
+             max_iter=2000, tol=1e-5):
     """
     Block coordinate descent pass using low-level BLAS function calls.
     """
