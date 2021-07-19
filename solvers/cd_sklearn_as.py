@@ -38,7 +38,7 @@ def cd_(
 
 class Solver(BaseSolver):
     """Block coordinate descent with low-level BLAS function calls"""
-    name = "cd_sklearn"
+    name = "cd_sklearn_as"
     stop_strategy = "callback"
 
     def skip(self, X, Y, lmbd, n_orient):
