@@ -17,7 +17,7 @@ class Solver(BaseSolver):
         self.X, self.Y = X, Y
         self.lmbd = lmbd
         self.n_orient = n_orient
-        self.maxit = 100_000
+        self.maxit = 3000
         self.tol = 1e-8 * sum_squared(self.Y)
 
         # Rescale alpha to be in [0, 100)
@@ -26,7 +26,6 @@ class Solver(BaseSolver):
         self.X /= self.lmbd_max
 
     def run(self, n_iter):
-        print(n_iter)
         max_iter = n_iter + 1
         lmbd = self.lmbd / self.lmbd_max * 100
         W, as_, _ = mixed_norm_solver(self.Y, self.X, lmbd,

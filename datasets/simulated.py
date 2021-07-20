@@ -18,16 +18,8 @@ class Dataset(BaseDataset):
         ],
     }
 
-    def __init__(
-        self,
-        n_samples=10,
-        n_features=50,
-        n_tasks=30,
-        corr=0.3,
-        nnz=2,
-        snr=2,
-        random_state=0,
-    ):
+    def __init__(self, n_samples=10, n_features=50, n_tasks=30, corr=0.3, nnz=2,
+                 snr=2, random_state=0):
         self.n_samples, self.n_features = n_samples, n_features
         self.n_tasks = n_tasks
         self.nnz, self.snr = nnz, snr
