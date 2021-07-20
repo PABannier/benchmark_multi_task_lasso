@@ -20,8 +20,8 @@ class Solver(BaseSolver):
         self.lmbd = lmbd
         self.n_orient = n_orient
         self.intial_active_set_size = 10
-        self.tol = 1e-8
-        self.max_iter = 3000
+        self.tol = 1e-12
+        self.max_iter = 100_000
 
     def run(self, callback):
         n_features = self.X.shape[1]

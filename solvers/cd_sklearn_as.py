@@ -41,8 +41,8 @@ class Solver(BaseSolver):
         self.lmbd = lmbd
         self.n_orient = n_orient
         self.active_set_size = 10
-        self.tol = 1e-8
-        self.max_iter = 3000
+        self.tol = 1e-12
+        self.max_iter = 100_000
 
     def run(self, callback):
         warnings.filterwarnings('ignore', category=ConvergenceWarning)

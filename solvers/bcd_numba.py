@@ -6,8 +6,8 @@ with safe_import_context() as import_ctx:
     import numpy as np
     from numpy.linalg import norm
     from numba import njit
-    from mtl_utils.common import (groups_norm2, get_lipschitz,
-                                  get_duality_gap)
+    from mtl_utils.common import (groups_norm2, get_lipschitz, get_duality_gap,
+                                  build_full_coefficient_matrix)
 
 if import_ctx.failed_import:
 
@@ -121,8 +121,8 @@ class Solver(BaseSolver):
         self.lmbd = lmbd
         self.n_orient = n_orient
         self.active_set_size = 10
-        self.max_iter = 3000
-        self.tol = 1e-8
+        self.max_iter = 100_000
+        self.tol = 1e-12
 
         # Make sure we cache the numba compilation.
         lipschitz, active_set, bcd_ = self._prepare_bcd()
@@ -148,7 +148,7 @@ class Solver(BaseSolver):
             active_set[active_set] = as_.copy()
             idx_old_active_set = np.where(active_set)[0]
 
-            self.build_full_coefficient_matrix(active_set, n_times, coef)
+            self.W = build_full_coefficient_matrix(active_set, n_times, coef)
 
             if iter_idx < (self.max_iter - 1):
                 R = self.Y - self.X[:, active_set] @ coef
@@ -172,17 +172,6 @@ class Solver(BaseSolver):
                 coef_init[idx] = coef
 
             iter_idx += 1
-
-        # XR = self.G.T @ (self.M - self.G @ self.X)
-        # assert norm_l2inf(XR, self.n_orient) <= self.lmbd + 1e-12, "KKT"
-
-    def build_full_coefficient_matrix(self, active_set, n_times, coef):
-        """Building full coefficient matrix and filling active set with
-        non-zero coefficients"""
-        final_coef_ = np.zeros((len(active_set), n_times))
-        if coef is not None:
-            final_coef_[active_set] = coef
-        self.W = final_coef_
 
     def get_result(self):
         return self.W

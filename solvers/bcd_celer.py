@@ -10,7 +10,7 @@ with safe_import_context() as import_ctx:
 
 
 class Solver(BaseSolver):
-    name = "bcd_celer_cython"
+    name = "bcd_celer"
     stop_strategy = 'iteration'
 
     def skip(self, X, Y, lmbd, n_orient):
@@ -21,11 +21,11 @@ class Solver(BaseSolver):
     def set_objective(self, X, Y, lmbd, n_orient):
         self.X, self.Y, self.lmbd = X, Y, lmbd
         self.maxit = 100_000
-        self.tol = 1e-8
+        self.tol = 1e-12
         self.clf = MultiTaskLasso(alpha=lmbd / len(Y),
                                   tol=self.tol / sum_squared(Y),
                                   normalize=False, fit_intercept=False,
-                                  max_iter=self.maxit, verbose=1)
+                                  max_iter=self.maxit, verbose=0)
 
     def run(self, n_iter):
         warnings.filterwarnings('ignore', category=ConvergenceWarning)

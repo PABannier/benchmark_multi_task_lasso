@@ -361,8 +361,8 @@ class Solver(BaseSolver):
 
     def run(self, n_iter):
         W = celer_dual_mtl(self.X, self.Y, self.lmbd, n_iter,
-                           max_epochs=3000, prune=True, verbose=0,
-                           n_orient=self.n_orient, tol=1e-8)[0]
+                           max_epochs=100_000, prune=True, verbose=0,
+                           n_orient=self.n_orient, tol=1e-12)[0]
         self.W = W
 
     def get_result(self):

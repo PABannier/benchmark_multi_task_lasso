@@ -20,7 +20,7 @@ class Solver(BaseSolver):
 
         # Rescale alpha to be in [0, 100)
         self.lmbd_max = norm_l2inf(X.T @ Y, n_orient, copy=False) * 0.01
-        self.X /= self.lmbd_max
+        #self.X /= self.lmbd_max
 
     def run(self, n_iter):
         max_iter = n_iter + 1
