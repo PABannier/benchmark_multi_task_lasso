@@ -4,6 +4,7 @@ from benchopt import safe_import_context
 
 with safe_import_context() as import_ctx:
     import numpy as np
+    import warnings
     from mne.inverse_sparse.mxne_inverse import mixed_norm_solver
     from mtl_utils.common import build_full_coefficient_matrix, sum_squared
 
@@ -19,6 +20,8 @@ class Solver(BaseSolver):
         self.lmbd = lmbd
 
     def run(self, n_iter):
+        warnings.filterwarnings('ignore', category=RuntimeWarning)
+
         if n_iter == 0:
             self.W = np.zeros((self.X.shape[1], self.Y.shape[1]))
         else:
