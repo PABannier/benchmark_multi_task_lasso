@@ -3,10 +3,8 @@ from benchopt import BaseSolver
 from benchopt import safe_import_context
 
 with safe_import_context() as import_ctx:
-    import numpy as np
     from mne.inverse_sparse.mxne_inverse import mixed_norm_solver
-    from mtl_utils.common import (build_full_coefficient_matrix, get_alpha_max,
-                                 sum_squared)
+    from mtl_utils.common import build_full_coefficient_matrix, sum_squared
 
 
 class Solver(BaseSolver):
@@ -17,12 +15,11 @@ class Solver(BaseSolver):
         self.X, self.Y = X, Y
         self.lmbd = lmbd
         self.n_orient = n_orient
-        self.maxit = 3000
+        # self.maxit = 3000
         self.tol = 1e-8 * sum_squared(self.Y)
 
         # Rescale alpha to be in [0, 100)
-        self.lmbd_max = norm_l2inf(np.dot(X.T, Y), n_orient, copy=False)
-        self.lmbd_max *= 0.01
+        self.lmbd_max = norm_l2inf(X.T @ Y, n_orient, copy=False) * 0.01
         self.X /= self.lmbd_max
 
     def run(self, n_iter):
