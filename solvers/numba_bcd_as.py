@@ -122,7 +122,7 @@ class Solver(BaseSolver):
         self.n_orient = n_orient
         self.active_set_size = 10
         self.max_iter = 100_000
-        self.tol = 1e-12
+        self.tol = 1e-8
 
         # Make sure we cache the numba compilation.
         lipschitz, active_set, bcd_ = self._prepare_bcd()
