@@ -25,7 +25,7 @@ class Solver(BaseSolver):
         self.clf = MultiTaskLasso(alpha=lmbd / len(Y),
                                   tol=self.tol / sum_squared(Y),
                                   normalize=False, fit_intercept=False,
-                                  max_iter=self.maxit, verbose=0)
+                                  verbose=0, prune=True)
 
     def run(self, n_iter):
         warnings.filterwarnings('ignore', category=ConvergenceWarning)
