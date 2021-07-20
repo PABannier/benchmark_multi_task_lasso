@@ -10,7 +10,7 @@ with safe_import_context() as import_ctx:
 
 
 class Solver(BaseSolver):
-    name = "bcd_celer"
+    name = "celer_cython"
     stop_strategy = 'iteration'
 
     def skip(self, X, Y, lmbd, n_orient):

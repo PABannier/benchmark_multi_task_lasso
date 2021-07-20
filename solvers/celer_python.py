@@ -348,7 +348,7 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
 
 
 class Solver(BaseSolver):
-    name = "bcd_celer_python"
+    name = "celer_python"
     stop_strategy = "iteration"
 
     def set_objective(self, X, Y, lmbd, n_orient):

@@ -82,7 +82,7 @@ class Solver(BaseSolver):
     for Multi-Task LASSO
     """
 
-    name = "bcd_numba"
+    name = "numba_bcd_as"
     stop_strategy = "callback"
     parameters = {"use_numba": (True, False)}
 

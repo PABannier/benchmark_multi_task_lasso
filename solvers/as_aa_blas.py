@@ -11,7 +11,7 @@ with safe_import_context() as import_ctx:
 class Solver(BaseSolver):
     """Block coordinate descent with low-level BLAS function calls"""
 
-    name = "bcd_as_aa_blas"
+    name = "as_aa_blas"
     stop_strategy = "callback"
     # parameters = {"accelerated": (True, False)}
 

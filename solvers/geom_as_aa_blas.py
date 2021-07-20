@@ -11,7 +11,7 @@ with safe_import_context() as import_ctx:
 class Solver(BaseSolver):
     """Block coordinate descent with low-level BLAS function calls"""
 
-    name = "bcd_geom_as"
+    name = "geom_as_aa_blas"
     stop_strategy = "callback"
 
     def set_objective(self, X, Y, lmbd, n_orient):
