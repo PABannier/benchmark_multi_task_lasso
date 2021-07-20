@@ -6,24 +6,13 @@ with safe_import_context() as import_ctx:
     import numpy as np
     from sklearn.linear_model import MultiTaskLasso
     from sklearn.exceptions import ConvergenceWarning
-    from mtl_utils.common import groups_norm2, sum_squared
+    from mtl_utils.common import (groups_norm2, sum_squared,
+                                  build_full_coefficient_matrix)
 
 
-def cd_(
-    X,
-    Y,
-    alpha,
-    init,
-    maxit=10_000,
-    tol=1e-8,
-):
-    clf = MultiTaskLasso(
-        alpha=alpha / len(Y),
-        tol=tol / sum_squared(Y),
-        fit_intercept=False,
-        max_iter=maxit,
-        warm_start=True,
-    )
+def cd_(X, Y, alpha, init, maxit=10_000, tol=1e-8):
+    clf = MultiTaskLasso(alpha=alpha / len(Y), tol=tol / sum_squared(Y),
+                         fit_intercept=False, max_iter=maxit, warm_start=True)
     if init is not None:
         clf.coef_ = init.T
     else:
@@ -81,25 +70,18 @@ class Solver(BaseSolver):
         iter_idx = 0
 
         while callback(self.W):
-            coef, as_ = cd_(
-                self.X[:, active_set],
-                self.Y,
-                self.lmbd,
-                coef_init,
-                maxit=self.max_iter,
-                tol=self.tol,
-            )
+            coef, as_ = cd_(self.X[:, active_set], self.Y, self.lmbd,
+                            coef_init, maxit=self.max_iter, tol=self.tol)
 
             active_set[active_set] = as_.copy()
             idx_old_active_set = np.where(active_set)[0]
 
-            self.build_full_coefficient_matrix(active_set, n_times, coef)
+            self.W = build_full_coefficient_matrix(active_set, n_times, coef)
 
             if iter_idx < (self.max_iter - 1):
                 R = self.Y - self.X[:, active_set] @ coef
-                idx_large_corr = np.argsort(
-                    groups_norm2(np.dot(self.X.T, R), self.n_orient)
-                )
+                idx_large_corr = np.argsort(groups_norm2(np.dot(self.X.T, R),
+                                            self.n_orient))
                 new_active_idx = idx_large_corr[-self.active_set_size:]
 
                 if self.n_orient > 1:
@@ -117,14 +99,6 @@ class Solver(BaseSolver):
                 coef_init[idx] = coef
 
             iter_idx += 1
-
-    def build_full_coefficient_matrix(self, active_set, n_times, coef):
-        """Building full coefficient matrix and filling active set with
-        non-zero coefficients"""
-        final_coef_ = np.zeros((len(active_set), n_times))
-        if coef is not None:
-            final_coef_[active_set] = coef
-        self.W = final_coef_
 
     def get_result(self):
         return self.W

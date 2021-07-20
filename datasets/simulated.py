@@ -11,9 +11,10 @@ class Dataset(BaseDataset):
 
     parameters = {
         "n_samples, n_features, n_tasks": [
-            (306, 24_000, 20),
-            (306, 24_000, 1),  # test overhead of tasks compared to pure Lasso
-            # (100, 300, 10),
+            #(306, 24_000, 20),
+            #(306, 24_000, 1),  # test overhead of tasks compared to pure Lasso
+            (100, 300, 10),
+            (100, 300, 1)
         ],
     }
 
