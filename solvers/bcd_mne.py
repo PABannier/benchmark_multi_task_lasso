@@ -12,24 +12,22 @@ class Solver(BaseSolver):
     stop_strategy = "iteration"
 
     def set_objective(self, X, Y, lmbd, n_orient):
-        self.X, self.Y = X, Y
-        self.lmbd = lmbd
+        self.X, self.Y = X.copy(), Y
         self.n_orient = n_orient
-        # self.maxit = 3000
-        self.tol = 1e-8 * sum_squared(self.Y)
+        self.tol = 1e-12 * sum_squared(self.Y)
 
         # Rescale alpha to be in [0, 100)
         self.lmbd_max = norm_l2inf(X.T @ Y, n_orient, copy=False) * 0.01
-        #self.X /= self.lmbd_max
+        self.reg = lmbd / (self.lmbd_max * 100)
+        self.X /= self.lmbd_max
 
     def run(self, n_iter):
         max_iter = n_iter + 1
-        lmbd = self.lmbd / self.lmbd_max * 100
-        W, as_, _ = mixed_norm_solver(self.Y, self.X, lmbd,
-                                      maxit=max_iter, tol=self.tol,
-                                      n_orient=self.n_orient, solver="bcd",
-                                      verbose=0)
-        self.W = build_full_coefficient_matrix(as_, self.Y.shape[1], W)
+        W_, as_, _ = mixed_norm_solver(self.Y, self.X, self.reg * 100,
+                                       maxit=max_iter, tol=self.tol,
+                                       n_orient=self.n_orient, solver="bcd",
+                                       verbose=0)
+        self.W = build_full_coefficient_matrix(as_, self.Y.shape[1], W_)
 
     def get_result(self):
         return self.W
