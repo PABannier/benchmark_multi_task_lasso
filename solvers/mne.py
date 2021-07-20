@@ -9,7 +9,7 @@ with safe_import_context() as import_ctx:
 
 
 class Solver(BaseSolver):
-    name = "bcd_mne"
+    name = "mne"
     stop_strategy = "iteration"
 
     def set_objective(self, X, Y, lmbd, n_orient):
