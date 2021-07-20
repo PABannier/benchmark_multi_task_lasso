@@ -3,6 +3,7 @@ from benchopt import BaseSolver
 from benchopt import safe_import_context
 
 with safe_import_context() as import_ctx:
+    import numpy as np
     from celer import MultiTaskLasso
     from sklearn.exceptions import ConvergenceWarning
     from mtl_utils.common import sum_squared
@@ -24,12 +25,15 @@ class Solver(BaseSolver):
         self.clf = MultiTaskLasso(alpha=lmbd / len(Y),
                                   tol=self.tol / sum_squared(Y),
                                   normalize=False, fit_intercept=False,
-                                  max_iter=self.maxit)
+                                  max_iter=self.maxit, verbose=1)
 
     def run(self, n_iter):
         warnings.filterwarnings('ignore', category=ConvergenceWarning)
-        self.clf.max_iter = n_iter + 1
-        self.clf.fit(self.X, self.Y)
+        if n_iter == 0:
+            self.clf.coef_ = np.zeros((self.Y.shape[1], self.X.shape[1]))
+        else:
+            self.clf.max_iter = n_iter
+            self.clf.fit(self.X, self.Y)
 
     def get_result(self):
         return self.clf.coef_.T
