@@ -28,6 +28,7 @@ class Solver(BaseSolver):
             W_, as_, _ = mixed_norm_solver(self.Y, self.X, self.lmbd,
                                            maxit=n_iter, tol=self.tol,
                                            n_orient=self.n_orient,
+                                           debias=False,
                                            solver="bcd", verbose=0)
             self.W = build_full_coefficient_matrix(as_, self.Y.shape[1], W_)
 
