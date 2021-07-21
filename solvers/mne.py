@@ -28,6 +28,7 @@ class Solver(BaseSolver):
                                            maxit=n_iter, tol=self.tol,
                                            active_set_size=10,
                                            n_orient=self.n_orient,
+                                           debias=False,
                                            solver="bcd", verbose=0)
             self.W = build_full_coefficient_matrix(as_, self.Y.shape[1], W_)
 
