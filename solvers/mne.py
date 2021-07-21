@@ -5,7 +5,7 @@ with safe_import_context() as import_ctx:
     import numpy as np
     import warnings
     from mne.inverse_sparse.mxne_inverse import mixed_norm_solver
-    from mtl_utils.common import build_full_coefficient_matrix, norm_l2inf
+    from mtl_utils.common import build_full_coefficient_matrix
 
 
 class Solver(BaseSolver):
