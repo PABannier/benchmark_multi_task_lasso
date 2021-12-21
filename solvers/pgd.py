@@ -5,7 +5,8 @@ from benchopt import safe_import_context
 with safe_import_context() as import_ctx:
     import numpy as np
     from numpy.linalg import norm
-    from mtl_utils.common import (groups_norm2, get_duality_gap)
+    from mtl_utils.common import (groups_norm2, get_duality_gap,
+                                  build_full_coefficient_matrix)
 
 
 def prox_l21(Y, alpha, n_orient, shape=None):
@@ -34,17 +35,8 @@ def prox_l21(Y, alpha, n_orient, shape=None):
     return Y, active_set
 
 
-def pgd_(
-    X,
-    Y,
-    lipschitz,
-    init,
-    _alpha,
-    n_orient,
-    dgap_freq=10,
-    max_iter=200,
-    tol=1e-8,
-):
+def pgd_(X, Y, lipschitz, init, _alpha, n_orient, dgap_freq=10, max_iter=200,
+         tol=1e-8):
     n_samples, n_times = Y.shape
     _, n_features = X.shape
 
@@ -93,9 +85,8 @@ def pgd_(
             R = GTM - np.dot(gram[:, B_as], B[B_as])
 
         if (i + 1) % dgap_freq == 0:
-            _, p_obj, d_obj = get_duality_gap(
-                X, Y, W, active_set, _alpha, n_orient
-            )
+            _, p_obj, d_obj = get_duality_gap(X, Y, W, active_set, _alpha,
+                                              n_orient)
             highest_d_obj = max(d_obj, highest_d_obj)
             gap = p_obj - highest_d_obj
             if gap < tol:
@@ -115,8 +106,8 @@ class Solver(BaseSolver):
         self.lmbd = lmbd
         self.n_orient = n_orient
         self.active_set_size = 10
-        self.tol = 1e-12
-        self.max_iter = 3000
+        self.tol = 1e-8
+        self.max_iter = 100_000
 
     def run(self, callback):
         n_features = self.X.shape[1]
@@ -124,9 +115,8 @@ class Solver(BaseSolver):
 
         # Initializing active set
         active_set = np.zeros(n_features, dtype=bool)
-        idx_large_corr = np.argsort(
-            groups_norm2(np.dot(self.X.T, self.Y), self.n_orient)
-        )
+        idx_large_corr = np.argsort(groups_norm2(np.dot(self.X.T, self.Y),
+                                    self.n_orient))
         new_active_idx = idx_large_corr[-self.active_set_size:]
         if self.n_orient > 1:
             new_active_idx = (
@@ -144,26 +134,18 @@ class Solver(BaseSolver):
             X_as = self.X[:, active_set]
             lipschitz_consts_tmp = norm(X_as, ord=2) ** 2
 
-            coef, as_ = pgd_(
-                X_as,
-                self.Y,
-                lipschitz_consts_tmp,
-                coef_init,
-                self.lmbd,
-                self.n_orient,
-                max_iter=self.max_iter,
-                tol=self.tol,
-            )
+            coef, as_ = pgd_(X_as, self.Y, lipschitz_consts_tmp, coef_init,
+                             self.lmbd, self.n_orient, max_iter=self.max_iter,
+                             tol=self.tol)
 
             active_set[active_set] = as_.copy()
             idx_old_active_set = np.where(active_set)[0]
 
-            self.build_full_coefficient_matrix(active_set, n_times, coef)
+            self.W = build_full_coefficient_matrix(active_set, n_times, coef)
 
             R = self.Y - self.X[:, active_set] @ coef
-            idx_large_corr = np.argsort(
-                groups_norm2(np.dot(self.X.T, R), self.n_orient)
-            )
+            idx_large_corr = np.argsort(groups_norm2(np.dot(self.X.T, R),
+                                        self.n_orient))
             new_active_idx = idx_large_corr[-self.active_set_size:]
 
             if self.n_orient > 1:
@@ -179,14 +161,6 @@ class Solver(BaseSolver):
             coef_init = np.zeros((as_size, n_times), dtype=coef.dtype)
             idx = np.searchsorted(idx_active_set, idx_old_active_set)
             coef_init[idx] = coef
-
-    def build_full_coefficient_matrix(self, active_set, n_times, coef):
-        """Building full coefficient matrix and filling active set with
-        non-zero coefficients"""
-        final_coef_ = np.zeros((len(active_set), n_times))
-        if coef is not None:
-            final_coef_[active_set] = coef
-        self.W = final_coef_
 
     def get_result(self):
         return self.W
