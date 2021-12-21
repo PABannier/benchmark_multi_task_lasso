@@ -1,50 +1,19 @@
 from benchopt import BaseSolver
 from benchopt import safe_import_context
 
+
 with safe_import_context() as import_ctx:
     import numpy as np
-    from sklearn.linear_model import MultiTaskLasso
-    from mtl_utils.common import (groups_norm2, get_lipschitz,
-                                  sum_squared)
-
-
-def cd_(
-    X,
-    Y,
-    lipschitz_constant,
-    alpha,
-    init,
-    maxit=10000,
-    tol=1e-8,
-    n_orient=1,
-    dgap_freq=10,
-):
-    clf = MultiTaskLasso(
-        alpha=alpha / len(Y),
-        tol=tol / sum_squared(Y),
-        normalize=False,
-        fit_intercept=False,
-        max_iter=maxit,
-        warm_start=True,
-    )
-    if init is not None:
-        clf.coef_ = init.T
-    else:
-        clf.coef_ = np.zeros((X.shape[1], Y.shape[1])).T
-    clf.fit(X, Y)
-
-    W = clf.coef_.T
-    active_set = np.any(W, axis=1)
-    W = W[active_set]
-    return W, active_set
+    from mtl_utils.common import (groups_norm2, get_lipschitz, bcd_pass,
+                                  build_full_coefficient_matrix)
 
 
 class Solver(BaseSolver):
-    """Block coordinate descent with
-    low-level BLAS function calls"""
+    """Block coordinate descent with low-level BLAS function calls"""
 
-    name = "cd_sklearn"
+    name = "as_aa_blas"
     stop_strategy = "callback"
+    # parameters = {"accelerated": (True, False)}
 
     def set_objective(self, X, Y, lmbd, n_orient):
         self.X, self.Y = X, Y
@@ -53,7 +22,7 @@ class Solver(BaseSolver):
         self.n_orient = n_orient
         self.active_set_size = 10
         self.tol = 1e-8
-        self.max_iter = 3000
+        self.max_iter = 100_000
 
     def run(self, callback):
         n_features = self.X.shape[1]
@@ -63,9 +32,8 @@ class Solver(BaseSolver):
 
         # Initializing active set
         active_set = np.zeros(n_features, dtype=bool)
-        idx_large_corr = np.argsort(
-            groups_norm2(np.dot(self.X.T, self.Y), self.n_orient)
-        )
+        idx_large_corr = np.argsort(groups_norm2(np.dot(self.X.T, self.Y),
+                                    self.n_orient))
         new_active_idx = idx_large_corr[-self.active_set_size:]
         if self.n_orient > 1:
             new_active_idx = (
@@ -85,27 +53,20 @@ class Solver(BaseSolver):
                 active_set[:: self.n_orient]
             ]
 
-            coef, as_ = cd_(
-                self.X[:, active_set],
-                self.Y,
-                lipschitz_consts_tmp,
-                self.lmbd,
-                coef_init,
-                maxit=self.max_iter,
-                tol=self.tol,
-                n_orient=self.n_orient,
-            )
+            coef, as_ = bcd_pass(self.X[:, active_set], self.Y,
+                                 lipschitz_consts_tmp, coef_init, self.lmbd,
+                                 self.n_orient, accelerated=True,
+                                 max_iter=self.max_iter, tol=self.tol)
 
             active_set[active_set] = as_.copy()
             idx_old_active_set = np.where(active_set)[0]
 
-            self.build_full_coefficient_matrix(active_set, n_times, coef)
+            self.W = build_full_coefficient_matrix(active_set, n_times, coef)
 
             if iter_idx < (self.max_iter - 1):
                 R = self.Y - self.X[:, active_set] @ coef
-                idx_large_corr = np.argsort(
-                    groups_norm2(np.dot(self.X.T, R), self.n_orient)
-                )
+                idx_large_corr = np.argsort(groups_norm2(np.dot(self.X.T, R),
+                                            self.n_orient))
                 new_active_idx = idx_large_corr[-self.active_set_size:]
 
                 if self.n_orient > 1:
@@ -123,14 +84,6 @@ class Solver(BaseSolver):
                 coef_init[idx] = coef
 
             iter_idx += 1
-
-    def build_full_coefficient_matrix(self, active_set, n_times, coef):
-        """Building full coefficient matrix and filling active set with
-        non-zero coefficients"""
-        final_coef_ = np.zeros((len(active_set), n_times))
-        if coef is not None:
-            final_coef_[active_set] = coef
-        self.W = final_coef_
 
     def get_result(self):
         return self.W

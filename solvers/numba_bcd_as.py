@@ -6,8 +6,13 @@ with safe_import_context() as import_ctx:
     import numpy as np
     from numpy.linalg import norm
     from numba import njit
-    from mtl_utils.common import (groups_norm2, get_lipschitz,
-                                  get_duality_gap)
+    from mtl_utils.common import (groups_norm2, get_lipschitz, get_duality_gap,
+                                  build_full_coefficient_matrix)
+
+if import_ctx.failed_import:
+
+    def njit(f):  # noqa: F811
+        return f
 
 
 @njit
@@ -38,17 +43,8 @@ def _bcd(W, X, R, lipschitz, n_orient, active_set, alpha):
 _bcd_numbda = njit(_bcd)
 
 
-def bcd(
-    X,
-    Y,
-    lipschitz,
-    init,
-    _alpha,
-    n_orient,
-    bcd_factory,
-    max_iter=2000,
-    tol=1e-5,
-):
+def bcd(X, Y, lipschitz, init, _alpha, n_orient, bcd_factory, max_iter=2000,
+        tol=1e-5):
     _, n_times = Y.shape
     _, n_features = X.shape
 
@@ -86,7 +82,7 @@ class Solver(BaseSolver):
     for Multi-Task LASSO
     """
 
-    name = "bcd_numba"
+    name = "numba_bcd_as"
     stop_strategy = "callback"
     parameters = {"use_numba": (True, False)}
 
@@ -125,15 +121,14 @@ class Solver(BaseSolver):
         self.lmbd = lmbd
         self.n_orient = n_orient
         self.active_set_size = 10
-        self.max_iter = 3000
+        self.max_iter = 100_000
         self.tol = 1e-8
 
         # Make sure we cache the numba compilation.
         lipschitz, active_set, bcd_ = self._prepare_bcd()
 
-        bcd_(
-            self.W, self.X, self.R, lipschitz, n_orient, active_set, self.lmbd
-        )
+        bcd_(self.W, self.X, self.R, lipschitz, n_orient, active_set,
+             self.lmbd)
 
     def run(self, callback):
         lipschitz, active_set, bcd_ = self._prepare_bcd()
@@ -146,22 +141,14 @@ class Solver(BaseSolver):
         while callback(self.W):
             lipschitz_as = lipschitz[active_set[:: self.n_orient]]
 
-            coef, as_ = bcd(
-                self.X[:, active_set],
-                self.Y,
-                lipschitz_as,
-                coef_init,
-                self.lmbd,
-                self.n_orient,
-                bcd_,
-                max_iter=self.max_iter,
-                tol=self.tol,
-            )
+            coef, as_ = bcd(self.X[:, active_set], self.Y, lipschitz_as,
+                            coef_init, self.lmbd, self.n_orient, bcd_,
+                            max_iter=self.max_iter, tol=self.tol)
 
             active_set[active_set] = as_.copy()
             idx_old_active_set = np.where(active_set)[0]
 
-            self.build_full_coefficient_matrix(active_set, n_times, coef)
+            self.W = build_full_coefficient_matrix(active_set, n_times, coef)
 
             if iter_idx < (self.max_iter - 1):
                 R = self.Y - self.X[:, active_set] @ coef
@@ -185,17 +172,6 @@ class Solver(BaseSolver):
                 coef_init[idx] = coef
 
             iter_idx += 1
-
-        # XR = self.G.T @ (self.M - self.G @ self.X)
-        # assert norm_l2inf(XR, self.n_orient) <= self.lmbd + 1e-12, "KKT"
-
-    def build_full_coefficient_matrix(self, active_set, n_times, coef):
-        """Building full coefficient matrix and filling active set with
-        non-zero coefficients"""
-        final_coef_ = np.zeros((len(active_set), n_times))
-        if coef is not None:
-            final_coef_[active_set] = coef
-        self.W = final_coef_
 
     def get_result(self):
         return self.W

@@ -11,33 +11,37 @@ class Dataset(BaseDataset):
 
     parameters = {
         "n_samples, n_features, n_tasks": [
-            # (100, 300, 50),
-            (100, 3000, 70),
-        ]
+            (306, 24_000, 20),
+            (306, 24_000, 1),  # test overhead of tasks compared to Lasso
+        ],
     }
 
-    def __init__(
-        self,
-        n_samples=10,
-        n_features=50,
-        n_tasks=30,
-        nnz=2,
-        snr=2,
-        random_state=0,
-    ):
+    def __init__(self, n_samples=10, n_features=50, n_tasks=30, corr=0.3,
+                 nnz=2, snr=2, random_state=0):
         self.n_samples, self.n_features = n_samples, n_features
         self.n_tasks = n_tasks
         self.nnz, self.snr = nnz, snr
         self.random_state = random_state
+        self.corr = corr
 
     def get_data(self):
         rng = np.random.RandomState(self.random_state)
-        X = rng.randn(self.n_samples, self.n_features)
+        sigma = np.sqrt(1 - self.corr ** 2)
+        U = rng.randn(self.n_samples)
 
-        support = rng.choice(self.nnz, size=self.n_features)
+        X = np.empty([self.n_samples, self.n_features], order="F")
+        X[:, 0] = U
+        for j in range(1, self.n_features):
+            U *= self.corr
+            U += sigma * rng.randn(self.n_samples)
+            X[:, j] = U
+
+        support = rng.choice(self.n_features, self.nnz, replace=False)
         W = np.zeros((self.n_features, self.n_tasks))
+
         for k in support:
             W[k, :] = rng.normal(size=(self.n_tasks))
+
         Y = X @ W
 
         noise = rng.randn(self.n_samples, self.n_tasks)
