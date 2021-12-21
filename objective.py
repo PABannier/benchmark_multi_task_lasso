@@ -3,13 +3,12 @@ from benchopt import safe_import_context
 
 with safe_import_context() as import_ctx:
     from numpy.linalg import norm
-    from mtl_utils.common import (
-        norm_l21, get_alpha_max)
+    from mtl_utils.common import norm_l21, get_alpha_max
 
 
 class Objective(BaseObjective):
     name = "Objective"
-    parameters = {"reg": [0.95], "n_orient": [3]}
+    parameters = {"reg": [0.5, 0.1, 0.01], "n_orient": [1]}
 
     def __init__(self, reg=0.1, n_orient=1):
         self.reg = reg
