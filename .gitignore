@@ -1,10 +1,11 @@
 # Cache directories
-joblib
 .pytest_cache
 __pycache__
+__cache__
 *.egg-info
 .coverage
 **/outputs
+joblib/
 
 # IDE specific folders
 .vscode
@@ -14,12 +15,3 @@ benchopt.ini
 
 .DS_Store
 coverage.xml
-
-# Misc
-/data
-
-*.json
-*.pkl
-*.npy
-
-func_code.py

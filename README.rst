@@ -1,3 +1,16 @@
+Template for BenchOpt Benchmark repositories
+=============================================
+|Build Template|
+
+This repo should be used with the following steps:
+
+1. Hit the `Use this template` button,
+2. Create the repo,
+3. Clone it on your computer,
+4. Run ``python clean_template.py`` script that will replace the necessary
+   part in the ``README.rst`` with your repo and org name.
+5. Remove this section and describe
+
 My BenchOpt Benchmark
 =====================
 |Build Status| |Python 3.6+|
@@ -24,19 +37,21 @@ This benchmark can be run using the following commands:
 .. code-block::
 
    $ pip install -U benchopt
-   $ git clone https://github.com/PABannier/benchmark_bcd
-   $ benchopt run benchmark_bcd
+   $ git clone https://github.com/#ORG/#BENCHMARK_NAME
+   $ benchopt run #BENCHMARK_NAME
 
 Apart from the problem, options can be passed to `benchopt run`, to restrict the benchmarks to some solvers or datasets, e.g.:
 
 .. code-block::
 
-	$ benchopt run benchmark_bcd -s solver1 -d dataset2 --max-runs 10 --n-repetitions 10
+	$ benchopt run #BENCHMARK_NAME -s solver1 -d dataset2 --max-runs 10 --n-repetitions 10
 
 
 Use `benchopt run -h` for more details about these options, or visit https://benchopt.github.io/api.html.
 
-.. |Build Status| image:: https://github.com/PABannier/benchmark_bcd/workflows/checks/badge.svg
-   :target: https://github.com/PABannier/benchmark_bcd/actions
+.. |Build Template| image:: https://github.com/benchopt/template_benchmark/workflows/Tests/badge.svg
+   :target: https://github.com/benchopt/template_benchmark/actions
+.. |Build Status| image:: https://github.com/#ORG/#BENCHMARK_NAME/workflows/Tests/badge.svg
+   :target: https://github.com/#ORG/#BENCHMARK_NAME/actions
 .. |Python 3.6+| image:: https://img.shields.io/badge/python-3.6%2B-blue
    :target: https://www.python.org/downloads/release/python-360/
