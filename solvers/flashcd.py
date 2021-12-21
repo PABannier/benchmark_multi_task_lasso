@@ -13,8 +13,10 @@ class Solver(BaseSolver):
     def set_objective(self, X, Y, lmbd, n_orient):
         self.X, self.Y = X, Y
         self.lmbd = lmbd
+        self.tol = 1e-8
 
-        self.clf = MultiTaskLasso(alpha=self.lmbd / self.X.shape[0])
+        self.clf = MultiTaskLasso(
+            alpha=self.lmbd / self.X.shape[0], tol=self.tol)
 
         # Caching Numba compilation
         self.run(1)
