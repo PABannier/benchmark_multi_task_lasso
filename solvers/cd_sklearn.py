@@ -43,7 +43,7 @@ class Solver(BaseSolver):
     """Block coordinate descent with
     low-level BLAS function calls"""
 
-    name = "cd_sklearn"
+    name = "ws_sk"
     stop_strategy = "callback"
 
     def set_objective(self, X, Y, lmbd, n_orient):
