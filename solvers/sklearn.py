@@ -3,6 +3,7 @@ from benchopt import safe_import_context
 
 with safe_import_context() as import_ctx:
     from sklearn.linear_model import MultiTaskLasso
+    from mtl_utils.common import sum_squared
 
 
 class Solver(BaseSolver):
@@ -16,7 +17,7 @@ class Solver(BaseSolver):
         self.tol = 1e-8
 
         self.clf = MultiTaskLasso(
-            alpha=self.lmbd / self.X.shape[0], tol=self.tol)
+            alpha=self.lmbd / self.X.shape[0], tol=self.tol / sum_squared(Y))
 
     def run(self, n_iter):
         self.clf.max_iter = n_iter
