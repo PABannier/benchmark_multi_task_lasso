@@ -7,7 +7,7 @@ with safe_import_context() as import_ctx:
 
 
 class Objective(BaseObjective):
-    name = "Objective"
+    name = "MTL"
     parameters = {"reg": [0.5, 0.1, 0.01], "n_orient": [1]}
 
     def __init__(self, reg=0.1, n_orient=1):
@@ -21,10 +21,12 @@ class Objective(BaseObjective):
 
     def compute(self, W):
         R = self.Y - self.X @ W
-        obj = 0.5 * norm(R, ord="fro") ** 2 + self.lmbd * norm_l21(
+        p_obj = 0.5 * norm(R, ord="fro") ** 2 + self.lmbd * norm_l21(
             W, self.n_orient
         )
-        return obj
+        # todo this does not handle n_orient=3
+        nnz = (norm(W, axis=1) != 0).sum()
+        return dict(value=p_obj, sparsity=nnz)
 
     def to_dict(self):
         return dict(X=self.X, Y=self.Y, lmbd=self.lmbd, n_orient=self.n_orient)
