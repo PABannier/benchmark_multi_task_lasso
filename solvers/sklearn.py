@@ -17,7 +17,8 @@ class Solver(BaseSolver):
         self.tol = 1e-8
 
         self.clf = MultiTaskLasso(
-            alpha=self.lmbd / self.X.shape[0], tol=self.tol / sum_squared(Y))
+            alpha=self.lmbd / self.X.shape[0], tol=self.tol / sum_squared(Y),
+            fit_intercept=False)
 
     def run(self, n_iter):
         self.clf.max_iter = n_iter

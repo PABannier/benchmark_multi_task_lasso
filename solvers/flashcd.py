@@ -18,7 +18,8 @@ class Solver(BaseSolver):
         self.lmbd = lmbd
         self.tol = 1e-8
         self.clf = MultiTaskLasso(
-            alpha=self.lmbd / self.X.shape[0], tol=self.tol / sum_squared(Y))
+            alpha=self.lmbd / self.X.shape[0], tol=self.tol / sum_squared(Y),
+            fit_intercept=False)
 
         # Caching Numba compilation
         self.run(1)
@@ -30,3 +31,8 @@ class Solver(BaseSolver):
 
     def get_result(self):
         return self.clf.coef_.T
+    
+    @staticmethod
+    def get_next(previous):
+        "Linear growth for n_iter."
+        return previous + 1
