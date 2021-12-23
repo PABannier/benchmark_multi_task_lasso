@@ -2,8 +2,10 @@ from benchopt import BaseSolver
 from benchopt import safe_import_context
 
 with safe_import_context() as import_ctx:
+    import warnings
     from sklearn.linear_model import MultiTaskLasso
     from mtl_utils.common import sum_squared
+    from sklearn.exceptions import ConvergenceWarning
 
 
 class Solver(BaseSolver):
@@ -21,6 +23,7 @@ class Solver(BaseSolver):
             fit_intercept=False)
 
     def run(self, n_iter):
+        warnings.filterwarnings('ignore', category=ConvergenceWarning)
         self.clf.max_iter = n_iter
         self.clf.fit(self.X, self.Y)
 
