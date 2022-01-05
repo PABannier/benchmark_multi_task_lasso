@@ -8,9 +8,10 @@ with safe_import_context() as import_ctx:
 
 class Objective(BaseObjective):
     name = "Objective"
-    # parameters = {"reg": [ .1], "n_orient": [1, 3]}
-    parameters = {"reg": [.1, .5], "n_orient": [1]}
-    # parameters = {"reg": [.1], "n_orient": [3]}
+    parameters = {
+        "reg": [1, 0.5, 0.1, 0.01],
+        "n_orient": [1]
+    }
 
     def __init__(self, reg=0.1, n_orient=1):
         self.reg = reg
@@ -23,10 +24,12 @@ class Objective(BaseObjective):
 
     def compute(self, W):
         R = self.Y - self.X @ W
-        obj = 0.5 * norm(R, ord="fro") ** 2 + self.lmbd * norm_l21(
+        p_obj = 0.5 * norm(R, ord="fro") ** 2 + self.lmbd * norm_l21(
             W, self.n_orient
         )
-        return obj
+        nnz = (norm(W.reshape(W.shape[0] // self.n_orient, -1), axis=1) != 0
+               ).sum()
+        return dict(value=p_obj, sparsity=nnz)
 
     def to_dict(self):
         return dict(X=self.X, Y=self.Y, lmbd=self.lmbd, n_orient=self.n_orient)
