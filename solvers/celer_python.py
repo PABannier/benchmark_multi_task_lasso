@@ -1,12 +1,11 @@
 from benchopt import BaseSolver, safe_import_context
 
 with safe_import_context() as import_ctx:
-    # from mtl_utils.common import get_alpha_max, get_lipschitz, groups_norm2
-    from mtl_utils.common import get_lipschitz
     import numpy as np
     from numpy.linalg import norm
     from numba import njit
-    from mtl_utils.common import sum_squared, _get_dgemm, norm_l21
+    from mtl_utils.common import (get_lipschitz, sum_squared, _get_dgemm,
+                                  norm_l21)
 
 
 if import_ctx.failed_import:
@@ -349,7 +348,10 @@ def celer_dual_mtl(X, Y, alpha, n_iter, max_epochs=10_000, gap_freq=10,
 
 class Solver(BaseSolver):
     name = "celer_python"
-    stop_strategy = "iteration"
+    stopping_strategy = "iteration"
+
+    install_cmd = "conda"
+    requirements = ["numba"]
 
     def set_objective(self, X, Y, lmbd, n_orient):
         self.Y, self.lmbd = Y, lmbd
@@ -365,6 +367,7 @@ class Solver(BaseSolver):
                            n_orient=self.n_orient, tol=1e-8)[0]
         self.W = W
 
+    @staticmethod
     def get_next(n_iter):
         return n_iter + 1
 

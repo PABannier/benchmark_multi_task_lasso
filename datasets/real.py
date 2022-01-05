@@ -16,10 +16,14 @@ class Dataset(BaseDataset):
         data_dir = Path(__file__).parent / "data"
         g_path = data_dir / "G.npy"
         m_path = data_dir / "M.npy"
-        X = np.load(g_path)
-        Y = np.load(m_path)
+        try:
+            X = np.load(g_path)
+            Y = np.load(m_path)
+        except IOError:
+            X = np.zeros((3, 4))
+            Y = np.ones((3, 5))
+            # TODO better data downloading
 
         data = dict(X=X, Y=Y)
-        size = X.shape[1] * Y.shape[1]
 
-        return size, data
+        return (X.shape[1], Y.shape[1]), data
