@@ -13,7 +13,7 @@ class Solver(BaseSolver):
     stopping_strategy = 'iteration'
 
     install_cmd = 'conda'
-    requirements = ['pip:celer']
+    requirements = ['pip:celer', 'numpy>=1.20']
 
     def skip(self, X, Y, lmbd, n_orient):
         if n_orient != 1:
