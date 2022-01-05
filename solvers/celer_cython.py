@@ -10,7 +10,7 @@ with safe_import_context() as import_ctx:
 
 class Solver(BaseSolver):
     name = "celer_cython"
-    stop_strategy = 'iteration'
+    stopping_strategy = 'iteration'
 
     requirements = ['pip:celer']
 

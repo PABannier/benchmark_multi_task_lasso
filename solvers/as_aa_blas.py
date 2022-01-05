@@ -12,7 +12,7 @@ class Solver(BaseSolver):
     """Block coordinate descent with low-level BLAS function calls"""
 
     name = "as_aa_blas"
-    stop_strategy = "callback"
+    stopping_strategy = "callback"
     # parameters = {"accelerated": (True, False)}
 
     def set_objective(self, X, Y, lmbd, n_orient):
@@ -33,7 +33,7 @@ class Solver(BaseSolver):
         # Initializing active set
         active_set = np.zeros(n_features, dtype=bool)
         idx_large_corr = np.argsort(groups_norm2(np.dot(self.X.T, self.Y),
-                                    self.n_orient))
+                                                 self.n_orient))
         new_active_idx = idx_large_corr[-self.active_set_size:]
         if self.n_orient > 1:
             new_active_idx = (
@@ -66,7 +66,7 @@ class Solver(BaseSolver):
             if iter_idx < (self.max_iter - 1):
                 R = self.Y - self.X[:, active_set] @ coef
                 idx_large_corr = np.argsort(groups_norm2(np.dot(self.X.T, R),
-                                            self.n_orient))
+                                                         self.n_orient))
                 new_active_idx = idx_large_corr[-self.active_set_size:]
 
                 if self.n_orient > 1:

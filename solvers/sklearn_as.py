@@ -28,7 +28,7 @@ def cd_(X, Y, alpha, init, maxit=10_000, tol=1e-8):
 class Solver(BaseSolver):
     """Sklearn solver with active set strategy"""
     name = "sklearn_as"
-    stop_strategy = "callback"
+    stopping_strategy = "callback"
 
     install_cmd = 'conda'
     requirements = ['scikit-learn']

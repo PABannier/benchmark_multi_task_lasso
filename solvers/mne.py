@@ -10,7 +10,10 @@ with safe_import_context() as import_ctx:
 
 class Solver(BaseSolver):
     name = "mne"
-    stop_strategy = "iteration"
+    stopping_strategy = "iteration"
+
+    insall_cmd = "conda"
+    requirements = ["mne"]
 
     def set_objective(self, X, Y, lmbd, n_orient):
         self.X, self.Y = X, Y
