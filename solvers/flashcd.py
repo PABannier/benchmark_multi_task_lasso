@@ -12,7 +12,9 @@ class Solver(BaseSolver):
     """FlashCD solver"""
 
     name = "flashcd"
-    parameters = { 'ws': [True, False], "use_acc": [True]}
+    parameters = {
+        'ws': [True, False],
+        "use_acc": [True]}
 
     def set_objective(self, X, Y, lmbd, n_orient):
         self.X, self.Y = X, Y
@@ -39,7 +41,7 @@ class Solver(BaseSolver):
 
     def get_result(self):
         return self.clf.coef_.T
-    
+
     @staticmethod
     def get_next(previous):
         "Linear growth for n_iter."
