@@ -17,7 +17,6 @@ class Solver(BaseSolver):
     def set_objective(self, X, Y, lmbd, n_orient):
         self.X, self.Y = X, Y
         self.lmbd = lmbd
-        self.tol = 1e-8
 
         if self.ws:
             p0 = 10
@@ -27,7 +26,7 @@ class Solver(BaseSolver):
             prune = False
 
         self.clf = MultiTaskLasso(
-            alpha=self.lmbd / self.X.shape[0], tol=self.tol / sum_squared(Y),
+            alpha=self.lmbd / self.X.shape[0], tol=1e-8 / sum_squared(Y),
             fit_intercept=False, p0=p0, prune=prune, use_acc=self.use_acc)
 
         # Caching Numba compilation
