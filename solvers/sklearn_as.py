@@ -26,9 +26,12 @@ def cd_(X, Y, alpha, init, maxit=10_000, tol=1e-8):
 
 
 class Solver(BaseSolver):
-    """Block coordinate descent with low-level BLAS function calls"""
+    """Sklearn solver with active set strategy"""
     name = "sklearn_as"
     stop_strategy = "callback"
+
+    install_cmd = 'conda'
+    requirements = ['sklearn']
 
     def skip(self, X, Y, lmbd, n_orient):
         if n_orient != 1:
@@ -81,7 +84,7 @@ class Solver(BaseSolver):
             if iter_idx < (self.max_iter - 1):
                 R = self.Y - self.X[:, active_set] @ coef
                 idx_large_corr = np.argsort(groups_norm2(np.dot(self.X.T, R),
-                                            self.n_orient))
+                                                         self.n_orient))
                 new_active_idx = idx_large_corr[-self.active_set_size:]
 
                 if self.n_orient > 1:
