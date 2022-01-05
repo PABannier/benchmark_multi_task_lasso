@@ -12,6 +12,7 @@ class Solver(BaseSolver):
 
     name = "sklearn"
 
+    install_cmd = 'conda'
     requirements = ['sklearn']
 
     def set_objective(self, X, Y, lmbd, n_orient):
