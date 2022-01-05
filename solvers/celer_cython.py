@@ -12,6 +12,7 @@ class Solver(BaseSolver):
     name = "celer_cython"
     stopping_strategy = 'iteration'
 
+    install_cmd = 'conda'
     requirements = ['pip:celer']
 
     def skip(self, X, Y, lmbd, n_orient):

@@ -12,8 +12,8 @@ class Solver(BaseSolver):
     name = "mne"
     stopping_strategy = "iteration"
 
-    insall_cmd = "conda"
-    requirements = ["mne"]
+    install_cmd = "conda"
+    requirements = ["pip:mne"]
 
     def set_objective(self, X, Y, lmbd, n_orient):
         self.X, self.Y = X, Y
