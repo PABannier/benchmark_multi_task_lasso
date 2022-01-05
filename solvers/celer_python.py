@@ -365,12 +365,13 @@ class Solver(BaseSolver):
                            n_orient=self.n_orient, tol=1e-8)[0]
         self.W = W
 
+    @staticmethod
     def get_next(n_iter):
         return n_iter + 1
 
     def get_result(self):
         return self.W
-    
+
     @staticmethod
     def get_next(previous):
         "Linear growth for n_iter."

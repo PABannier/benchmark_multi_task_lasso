@@ -21,10 +21,9 @@ class Solver(BaseSolver):
 
     def set_objective(self, X, Y, lmbd, n_orient):
         self.X, self.Y, self.lmbd = X, Y, lmbd
-        self.clf = MultiTaskLasso(alpha=lmbd / len(Y),
-                                  tol=1e-8 / (Y ** 2).sum(),
-                                  normalize=False, fit_intercept=False,
-                                  verbose=0, prune=True)
+        self.clf = MultiTaskLasso(
+            alpha=lmbd / len(Y), tol=1e-8 / (Y ** 2).sum(),
+            fit_intercept=False, verbose=0, prune=True)
 
     def run(self, n_iter):
         warnings.filterwarnings('ignore', category=ConvergenceWarning)
@@ -34,6 +33,7 @@ class Solver(BaseSolver):
             self.clf.max_iter = n_iter
             self.clf.fit(self.X, self.Y)
 
+    @staticmethod
     def get_next(n_iter):
         return n_iter + 1
 
