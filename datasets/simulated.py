@@ -1,6 +1,5 @@
 from benchopt import BaseDataset
 from benchopt import safe_import_context
-from benchopt.datasets import make_correlated_data
 
 with safe_import_context() as import_ctx:
     from benchopt.datasets import make_correlated_data
@@ -26,8 +25,8 @@ class Dataset(BaseDataset):
 
     def get_data(self):
         X, Y, _ = make_correlated_data(
-            n_samples=self.n_samples, n_features=self.n_features, 
-            n_tasks=self.n_tasks, rho=self.rho, snr=self.snr, 
+            n_samples=self.n_samples, n_features=self.n_features,
+            n_tasks=self.n_tasks, rho=self.rho, snr=self.snr,
             density=self.density, random_state=self.random_state)
 
         data = dict(X=X, Y=Y)
