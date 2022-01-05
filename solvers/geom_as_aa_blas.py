@@ -12,7 +12,7 @@ class Solver(BaseSolver):
     """Block coordinate descent with low-level BLAS function calls"""
 
     name = "geom_as_aa_blas"
-    stop_strategy = "callback"
+    stopping_strategy = "callback"
 
     def set_objective(self, X, Y, lmbd, n_orient):
         self.X, self.Y = X, Y

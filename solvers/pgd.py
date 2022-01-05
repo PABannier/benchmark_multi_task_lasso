@@ -99,7 +99,7 @@ class Solver(BaseSolver):
     """Proximal gradient descent"""
 
     name = "pgd"
-    stop_strategy = "callback"
+    stopping_strategy = "callback"
 
     def set_objective(self, X, Y, lmbd, n_orient):
         self.X, self.Y = X, Y
@@ -116,7 +116,7 @@ class Solver(BaseSolver):
         # Initializing active set
         active_set = np.zeros(n_features, dtype=bool)
         idx_large_corr = np.argsort(groups_norm2(np.dot(self.X.T, self.Y),
-                                    self.n_orient))
+                                                 self.n_orient))
         new_active_idx = idx_large_corr[-self.active_set_size:]
         if self.n_orient > 1:
             new_active_idx = (
@@ -145,7 +145,7 @@ class Solver(BaseSolver):
 
             R = self.Y - self.X[:, active_set] @ coef
             idx_large_corr = np.argsort(groups_norm2(np.dot(self.X.T, R),
-                                        self.n_orient))
+                                                     self.n_orient))
             new_active_idx = idx_large_corr[-self.active_set_size:]
 
             if self.n_orient > 1:

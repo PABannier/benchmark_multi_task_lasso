@@ -14,8 +14,9 @@ class Solver(BaseSolver):
     """ScikitLearn solver"""
 
     name = "sklearn"
+    install_cmd = 'conda'
+    requirements = ['scikit-learn']
 
-    requirements = ['sklearn']
     parameters = {
         'oracle': [True, False]
     }
