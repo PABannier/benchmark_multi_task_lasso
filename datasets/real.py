@@ -20,6 +20,5 @@ class Dataset(BaseDataset):
         Y = np.load(m_path)
 
         data = dict(X=X, Y=Y)
-        size = X.shape[1] * Y.shape[1]
 
-        return size, data
+        return (X.shape[1], Y.shape[1]), data
