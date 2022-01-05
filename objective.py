@@ -19,8 +19,11 @@ class Objective(BaseObjective):
         self.alpha_max = get_alpha_max(self.X, self.Y, self.n_orient)
         self.lmbd = self.reg * self.alpha_max
 
-    def compute(self, W):
-        R = self.Y - self.X @ W
+    def compute(self, W, true_support=None):
+        if true_support:
+            R = self.Y - self.X[:, true_support] @ W
+        else:
+            R = self.Y - self.X @ W
         p_obj = 0.5 * norm(R, ord="fro") ** 2 + self.lmbd * norm_l21(
             W, self.n_orient
         )
