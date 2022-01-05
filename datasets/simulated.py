@@ -2,8 +2,7 @@ from benchopt import BaseDataset
 from benchopt import safe_import_context
 
 with safe_import_context() as import_ctx:
-    import numpy as np
-    from numpy.linalg import norm
+    from benchopt.datasets import make_correlated_data
 
 
 class Dataset(BaseDataset):
@@ -11,43 +10,24 @@ class Dataset(BaseDataset):
 
     parameters = {
         "n_samples, n_features, n_tasks": [
-            (306, 24_000, 20),
-            (306, 24_000, 1),  # test overhead of tasks compared to Lasso
+            (306, 3000, 20),
+            (306, 3000, 1),  # test overhead of tasks compared to Lasso
         ],
     }
 
-    def __init__(self, n_samples=10, n_features=50, n_tasks=30, corr=0.3,
-                 nnz=2, snr=2, random_state=0):
+    def __init__(self, n_samples=10, n_features=50, n_tasks=30, rho=0.3,
+                 snr=3, density=0.3, random_state=0):
         self.n_samples, self.n_features = n_samples, n_features
         self.n_tasks = n_tasks
-        self.nnz, self.snr = nnz, snr
+        self.density, self.snr = density, snr
         self.random_state = random_state
-        self.corr = corr
+        self.rho = rho
 
     def get_data(self):
-        rng = np.random.RandomState(self.random_state)
-        sigma = np.sqrt(1 - self.corr ** 2)
-        U = rng.randn(self.n_samples)
-
-        X = np.empty([self.n_samples, self.n_features], order="F")
-        X[:, 0] = U
-        for j in range(1, self.n_features):
-            U *= self.corr
-            U += sigma * rng.randn(self.n_samples)
-            X[:, j] = U
-
-        support = rng.choice(self.n_features, self.nnz, replace=False)
-        W = np.zeros((self.n_features, self.n_tasks))
-
-        for k in support:
-            W[k, :] = rng.normal(size=(self.n_tasks))
-
-        Y = X @ W
-
-        noise = rng.randn(self.n_samples, self.n_tasks)
-        sigma = 1 / norm(noise) * norm(Y) / self.snr
-
-        Y += sigma * noise
+        X, Y, _ = make_correlated_data(
+            n_samples=self.n_samples, n_features=self.n_features,
+            n_tasks=self.n_tasks, rho=self.rho, snr=self.snr,
+            density=self.density, random_state=self.random_state)
 
         data = dict(X=X, Y=Y)
 
