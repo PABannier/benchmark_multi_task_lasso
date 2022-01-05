@@ -31,7 +31,7 @@ class Solver(BaseSolver):
     stop_strategy = "callback"
 
     install_cmd = 'conda'
-    requirements = ['sklearn']
+    requirements = ['scikit-learn']
 
     def skip(self, X, Y, lmbd, n_orient):
         if n_orient != 1:

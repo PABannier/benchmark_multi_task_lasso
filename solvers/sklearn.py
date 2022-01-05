@@ -13,7 +13,7 @@ class Solver(BaseSolver):
     name = "sklearn"
 
     install_cmd = 'conda'
-    requirements = ['sklearn']
+    requirements = ['scikit-learn']
 
     def set_objective(self, X, Y, lmbd, n_orient):
         self.X, self.Y = X, Y
