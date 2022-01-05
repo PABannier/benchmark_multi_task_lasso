@@ -30,7 +30,7 @@ class Solver(BaseSolver):
                 alpha=self.lmbd / self.X.shape[0],
                 tol=self.tol / (Y ** 2).sum(), fit_intercept=False
             ).fit(self.X, self.Y)
-            self.true_supp = norm(clf_celer.coef_.T, axis=1) != 0
+            self.true_support = norm(clf_celer.coef_.T, axis=1) != 0
 
         self.clf = MultiTaskLasso(
             alpha=self.lmbd / self.X.shape[0], tol=self.tol / (Y ** 2).sum(),
@@ -48,5 +48,6 @@ class Solver(BaseSolver):
     def get_result(self):
         if self.oracle:
             W = np.zeros((self.X.shape[1], self.Y.shape[1]))
-            W[self.true_supp] = self.coef_.T
+            W[self.true_support] = self.clf.coef_.T
+            return W
         return self.clf.coef_.T
