@@ -3,8 +3,7 @@ from benchopt import safe_import_context
 from benchopt.datasets import make_correlated_data
 
 with safe_import_context() as import_ctx:
-    import numpy as np
-    from numpy.linalg import norm
+    from benchopt.datasets import make_correlated_data
 
 
 class Dataset(BaseDataset):
