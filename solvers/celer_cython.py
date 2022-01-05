@@ -10,9 +10,10 @@ with safe_import_context() as import_ctx:
 
 class Solver(BaseSolver):
     name = "celer_cython"
-    stop_strategy = 'iteration'
+    stopping_strategy = 'iteration'
 
-    requirements = ['pip:celer']
+    install_cmd = 'conda'
+    requirements = ['pip:celer', 'numpy>=1.20']
 
     def skip(self, X, Y, lmbd, n_orient):
         if n_orient != 1:
@@ -23,7 +24,7 @@ class Solver(BaseSolver):
         self.X, self.Y, self.lmbd = X, Y, lmbd
         self.clf = MultiTaskLasso(alpha=lmbd / len(Y),
                                   tol=1e-8 / (Y ** 2).sum(),
-                                  normalize=False, fit_intercept=False,
+                                  fit_intercept=False,
                                   verbose=0, prune=True)
 
     def run(self, n_iter):
@@ -34,6 +35,7 @@ class Solver(BaseSolver):
             self.clf.max_iter = n_iter
             self.clf.fit(self.X, self.Y)
 
+    @staticmethod
     def get_next(n_iter):
         return n_iter + 1
 

@@ -83,8 +83,10 @@ class Solver(BaseSolver):
     """
 
     name = "numba_bcd_as"
-    stop_strategy = "callback"
+    stopping_strategy = "callback"
     parameters = {"use_numba": (True, False)}
+
+    requirements = ["numba"]
 
     def _prepare_bcd(self):
         _, n_sources = self.X.shape
