@@ -6,6 +6,7 @@ with safe_import_context() as import_ctx:
     import numpy as np
     from celer import MultiTaskLasso
     from sklearn.exceptions import ConvergenceWarning
+    import scipy.sparse as sp
 
 
 class Solver(BaseSolver):
@@ -33,6 +34,8 @@ class Solver(BaseSolver):
             self.clf.coef_ = np.zeros((self.Y.shape[1], self.X.shape[1]))
         else:
             self.clf.max_iter = n_iter
+            if sp.issparse(self.X):
+                self.X = self.X.toarray()
             self.clf.fit(self.X, self.Y)
 
     @staticmethod

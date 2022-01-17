@@ -5,7 +5,7 @@ with safe_import_context() as import_ctx:
     from flashcd.estimators import MultiTaskLasso
     import warnings
     from sklearn.exceptions import ConvergenceWarning
-    from mtl_utils.common import sum_squared
+    sum_squared = import_ctx.import_from("common", "sum_squared")
 
 
 class Solver(BaseSolver):
@@ -13,7 +13,7 @@ class Solver(BaseSolver):
 
     name = "flashcd"
     parameters = {
-        'ws': [True, False],
+        'ws': [True],
         "use_acc": [True]}
 
     def set_objective(self, X, Y, lmbd, n_orient):
